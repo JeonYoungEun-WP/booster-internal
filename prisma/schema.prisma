@@ -1,0 +1,123 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// 업무 관리
+model DailyTask {
+  id             String   @id @default(cuid())
+  date           DateTime
+  authorEmail    String
+  authorName     String
+  content        String   @db.Text
+  source         String   @default("MANUAL")
+  teamsMessageId String?  @unique
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@index([date])
+  @@index([authorEmail])
+}
+
+model WeeklyReport {
+  id                 String    @id @default(cuid())
+  weekStart          DateTime
+  authorEmail        String
+  authorName         String
+  weeklyPlan         String?   @db.Text
+  weeklySummary      String?   @db.Text
+  summaryGeneratedAt DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([weekStart, authorEmail])
+  @@index([weekStart])
+  @@index([authorEmail])
+}
+
+model Project {
+  id          String    @id @default(cuid())
+  title       String
+  description String?   @db.Text
+  startDate   DateTime
+  endDate     DateTime?
+  status      String    @default("IN_PROGRESS")
+  color       String?
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  activities ProjectActivity[]
+
+  @@index([status])
+}
+
+model ProjectActivity {
+  id          String   @id @default(cuid())
+  projectId   String
+  date        DateTime
+  authorEmail String
+  authorName  String
+  summary     String   @db.Text
+  dailyTaskId String?
+  createdAt   DateTime @default(now())
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([date])
+}
+
+// 리드 관리 (sync-leads용)
+model Lead {
+  id             String     @id @default(cuid())
+  userId         String?
+  orderId        String?
+  name           String
+  phone          String
+  email          String?
+  companyName    String?
+  industry       String?
+  adGoal         String?
+  monthlyBudget  String?
+  source         String?
+  status         LeadStatus @default(NEW)
+  memo           String?    @db.Text
+  odooLeadId     String?
+  assignedTo     String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  histories LeadHistory[]
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([assignedTo])
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  CONSULTING
+  RESERVED
+  VISITED
+  CONVERTED
+  LOST
+  INVALID
+}
+
+model LeadHistory {
+  id        String     @id @default(cuid())
+  leadId    String
+  status    LeadStatus
+  memo      String?    @db.Text
+  createdBy String?
+  createdAt DateTime   @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id])
+
+  @@index([leadId])
+}
