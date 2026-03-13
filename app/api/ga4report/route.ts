@@ -216,7 +216,7 @@ export async function GET(request: NextRequest) {
   } catch (error) {
     console.error('GET /api/ga4report error:', error)
     return NextResponse.json(
-      { error: (error as Error).message, v: 2 },
+      { error: (error as Error).message },
       { status: 500 },
     )
   }
