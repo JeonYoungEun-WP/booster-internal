@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       // Claude AI 요약 생성
       const dailyEntries = tasks.map((t) => ({
         date: t.date.toISOString().slice(0, 10),
-        content: t.content,
+        content: t.content.replace(/<[^>]+>/g, '').trim(),
       }))
 
       const summary = await generateWeeklySummary(
