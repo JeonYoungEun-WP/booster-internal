@@ -106,25 +106,34 @@ export default function LeadsPage() {
 
           return (
             <>
-              {/* 월 탭 */}
-              <div className="flex items-center gap-1 flex-wrap">
-                {monthly.months.slice().reverse().map((m: MonthData) => {
-                  const isActive = displayMonth.month === m.month;
-                  const monthTotal = Object.values(m.counts).reduce((a, b) => a + b, 0);
+              {/* 월 탭 - 컴팩트 칩 */}
+              <div className="flex items-center gap-1">
+                <span className="text-xs text-muted-foreground mr-1">{currentMonthData.year}</span>
+                {Array.from({ length: 12 }, (_, i) => {
+                  const m = monthly.months.find((md: MonthData) => md.month === i);
+                  const isActive = displayMonth.month === i;
+                  const isFuture = !m;
+                  const monthTotal = m ? Object.values(m.counts).reduce((a, b) => a + b, 0) : 0;
                   return (
                     <button
-                      key={m.month}
-                      onClick={() => setSelectedMonth(m.month === currentMonthData.month ? null : m.month)}
-                      className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                      key={i}
+                      disabled={isFuture}
+                      onClick={() => !isFuture && setSelectedMonth(i === currentMonthData.month ? null : i)}
+                      className={`relative rounded-md px-2 py-1 text-xs transition-colors ${
                         isActive
                           ? 'bg-primary text-primary-foreground font-semibold'
+                          : isFuture
+                          ? 'text-muted-foreground/30 cursor-default'
                           : 'border border-border hover:bg-muted/50'
                       }`}
+                      title={m ? `${monthTotal}건` : ''}
                     >
-                      {String(m.year).slice(2)}년 {m.month + 1}월
-                      <span className={`ml-1 text-xs ${isActive ? 'opacity-80' : 'text-muted-foreground'}`}>
-                        ({monthTotal})
-                      </span>
+                      {i + 1}월
+                      {!isFuture && (
+                        <span className={`ml-0.5 text-[10px] ${isActive ? 'opacity-80' : 'text-muted-foreground'}`}>
+                          {monthTotal}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
