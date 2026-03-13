@@ -66,11 +66,8 @@ export function useMonthlyLeadCounts() {
   const curYear = now.getFullYear()
   const curMonth = now.getMonth()
 
-  const prevMonth = curMonth === 0 ? 11 : curMonth - 1
-  const prevYear = curMonth === 0 ? curYear - 1 : curYear
-
-  // KST 기준 지난달 1일 ~ 이번달 말일을 UTC로 변환
-  const kstStart = new Date(Date.UTC(prevYear, prevMonth, 1) - 9 * 60 * 60 * 1000)
+  // KST 기준 올해 1월 1일 ~ 이번달 말일
+  const kstStart = new Date(Date.UTC(curYear, 0, 1) - 9 * 60 * 60 * 1000)
   const kstEnd = new Date(Date.UTC(curYear, curMonth + 1, 1) - 9 * 60 * 60 * 1000)
   const startDate = kstStart.toISOString().replace('T', ' ').slice(0, 19)
   const endDate = kstEnd.toISOString().replace('T', ' ').slice(0, 19)
@@ -91,8 +88,12 @@ export function useMonthlyLeadCounts() {
         if (json.error) throw new Error(json.error)
 
         const records: { create_date: string }[] = json.records || []
-        const curMap: Record<number, number> = {}
-        const prevMap: Record<number, number> = {}
+
+        // 월별 맵 초기화 (1월 ~ 현재월)
+        const monthMaps: Record<number, Record<number, number>> = {}
+        for (let m = 0; m <= curMonth; m++) {
+          monthMaps[m] = {}
+        }
 
         records.forEach((r) => {
           const utc = new Date(String(r.create_date).replace(' ', 'T') + 'Z')
@@ -101,17 +102,22 @@ export function useMonthlyLeadCounts() {
           const y = kst.getUTCFullYear()
           const day = kst.getUTCDate()
 
-          if (y === curYear && m === curMonth) {
-            curMap[day] = (curMap[day] || 0) + 1
-          } else if (y === prevYear && m === prevMonth) {
-            prevMap[day] = (prevMap[day] || 0) + 1
+          if (y === curYear && monthMaps[m]) {
+            monthMaps[m][day] = (monthMaps[m][day] || 0) + 1
           }
         })
 
-        setMonths([
-          { year: curYear, month: curMonth, daysInMonth: new Date(curYear, curMonth + 1, 0).getDate(), counts: curMap },
-          { year: prevYear, month: prevMonth, daysInMonth: new Date(prevYear, prevMonth + 1, 0).getDate(), counts: prevMap },
-        ])
+        // 현재월이 맨 앞에 오도록 역순 정렬
+        const result: MonthData[] = []
+        for (let m = curMonth; m >= 0; m--) {
+          result.push({
+            year: curYear,
+            month: m,
+            daysInMonth: new Date(curYear, m + 1, 0).getDate(),
+            counts: monthMaps[m],
+          })
+        }
+        setMonths(result)
       })
       .catch(() => {})
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -119,5 +125,5 @@ export function useMonthlyLeadCounts() {
     return () => { cancelled = true }
   }, [startDate, endDate])
 
-  return { months, loading }
+  return { months, loading, currentMonth: curMonth }
 }

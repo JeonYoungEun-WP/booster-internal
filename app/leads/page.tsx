@@ -50,6 +50,7 @@ export default function LeadsPage() {
   const [sortField, setSortField] = useState('create_date');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const monthly = useMonthlyLeadCounts();
+  const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
 
   const handleSort = (field: string) => {
     if (field === sortField) {
@@ -96,45 +97,80 @@ export default function LeadsPage() {
           </div>
         </div>
 
-        {!monthly.loading && monthly.months.map((m: MonthData) => (
-          <div key={`${m.year}-${m.month}`} className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-            <table className="w-full text-sm text-center">
-              <thead>
-                <tr className="border-b border-border bg-muted/50">
-                  <th className="px-1 py-2 font-medium text-left min-w-[50px]">{m.year}년 {m.month + 1}월</th>
-                  {Array.from({ length: m.daysInMonth }, (_, i) => {
-                    const dow = new Date(m.year, m.month, i + 1).getDay();
-                    const color = dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : '';
-                    return (
-                      <th key={i} className={`px-1 py-2 font-medium min-w-[32px] ${color}`}>
-                        {m.month + 1}/{i + 1}
-                      </th>
-                    );
-                  })}
-                  <th className="px-2 py-2 font-bold bg-muted">합계</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td className="px-1 py-2 font-medium text-left">리드수</td>
-                  {Array.from({ length: m.daysInMonth }, (_, i) => {
-                    const count = m.counts[i + 1] || 0;
-                    const dow = new Date(m.year, m.month, i + 1).getDay();
-                    const isSunday = dow === 0;
-                    return (
-                      <td key={i} className={`px-1 py-2 ${isSunday ? 'text-red-500 font-semibold' : count > 0 ? 'font-semibold' : 'text-muted-foreground'}`}>
-                        {count || '-'}
+        {!monthly.loading && monthly.months.length > 0 && (() => {
+          const currentMonthData = monthly.months[0];
+          const activeMonth = selectedMonth !== null
+            ? monthly.months.find((m: MonthData) => m.month === selectedMonth)
+            : currentMonthData;
+          const displayMonth = activeMonth || currentMonthData;
+
+          return (
+            <>
+              {/* 월 탭 */}
+              <div className="flex items-center gap-1 flex-wrap">
+                {monthly.months.slice().reverse().map((m: MonthData) => {
+                  const isActive = displayMonth.month === m.month;
+                  const monthTotal = Object.values(m.counts).reduce((a, b) => a + b, 0);
+                  return (
+                    <button
+                      key={m.month}
+                      onClick={() => setSelectedMonth(m.month === currentMonthData.month ? null : m.month)}
+                      className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                        isActive
+                          ? 'bg-primary text-primary-foreground font-semibold'
+                          : 'border border-border hover:bg-muted/50'
+                      }`}
+                    >
+                      {String(m.year).slice(2)}년 {m.month + 1}월
+                      <span className={`ml-1 text-xs ${isActive ? 'opacity-80' : 'text-muted-foreground'}`}>
+                        ({monthTotal})
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* 선택된 월 달력 */}
+              <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+                <table className="w-full text-sm text-center">
+                  <thead>
+                    <tr className="border-b border-border bg-muted/50">
+                      <th className="px-1 py-2 font-medium text-left min-w-[50px]">{displayMonth.year}년 {displayMonth.month + 1}월</th>
+                      {Array.from({ length: displayMonth.daysInMonth }, (_, i) => {
+                        const dow = new Date(displayMonth.year, displayMonth.month, i + 1).getDay();
+                        const color = dow === 0 ? 'text-red-500' : dow === 6 ? 'text-blue-500' : '';
+                        return (
+                          <th key={i} className={`px-1 py-2 font-medium min-w-[32px] ${color}`}>
+                            {displayMonth.month + 1}/{i + 1}
+                          </th>
+                        );
+                      })}
+                      <th className="px-2 py-2 font-bold bg-muted">합계</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td className="px-1 py-2 font-medium text-left">리드수</td>
+                      {Array.from({ length: displayMonth.daysInMonth }, (_, i) => {
+                        const count = displayMonth.counts[i + 1] || 0;
+                        const dow = new Date(displayMonth.year, displayMonth.month, i + 1).getDay();
+                        const isSunday = dow === 0;
+                        return (
+                          <td key={i} className={`px-1 py-2 ${isSunday ? 'text-red-500 font-semibold' : count > 0 ? 'font-semibold' : 'text-muted-foreground'}`}>
+                            {count || '-'}
+                          </td>
+                        );
+                      })}
+                      <td className="px-2 py-2 font-bold bg-muted">
+                        {Object.values(displayMonth.counts).reduce((a, b) => a + b, 0)}
                       </td>
-                    );
-                  })}
-                  <td className="px-2 py-2 font-bold bg-muted">
-                    {Object.values(m.counts).reduce((a, b) => a + b, 0)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        ))}
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
+          );
+        })()}
 
         {error && (
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-red-500">
