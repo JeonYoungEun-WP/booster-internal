@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { GoogleAuth } from 'google-auth-library'
+import { getVercelOidcToken } from '@vercel/functions/oidc'
 
 const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID
 const GA4_API = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:runReport`
@@ -30,13 +31,8 @@ async function getAccessToken(): Promise<string> {
   const serviceAccountEmail = process.env.GCP_SERVICE_ACCOUNT_EMAIL
 
   if (projectNumber && poolId && providerId && serviceAccountEmail && process.env.VERCEL) {
-    // Vercel OIDC 토큰 가져오기
-    const oidcTokenUrl = process.env.VERCEL_OIDC_TOKEN_URL
-    if (!oidcTokenUrl) throw new Error('VERCEL_OIDC_TOKEN_URL not available')
-
-    const oidcRes = await fetch(oidcTokenUrl)
-    if (!oidcRes.ok) throw new Error(`Failed to get OIDC token: ${oidcRes.status}`)
-    const oidcToken = await oidcRes.text()
+    // Vercel OIDC 토큰 가져오기 (@vercel/functions 사용)
+    const oidcToken = await getVercelOidcToken()
 
     // STS 토큰 교환
     const stsUrl = 'https://sts.googleapis.com/v1/token'
