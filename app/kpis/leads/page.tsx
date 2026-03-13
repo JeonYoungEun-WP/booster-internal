@@ -62,7 +62,7 @@ export default function LeadsPage() {
     setPage(0);
   };
 
-  const { data: leads, total, loading, error, source } = useLeads({
+  const { data: leads, total, loading, error } = useLeads({
     limit: PAGE_SIZE,
     offset: page * PAGE_SIZE,
     sortField,
@@ -86,7 +86,7 @@ export default function LeadsPage() {
             {!loading && (
               <span className="text-sm text-muted-foreground">
                 총 {total.toLocaleString()}건
-                <span className="ml-1 text-xs opacity-60">({source === 'supabase' ? 'DB' : 'Odoo'})</span>
+                <span className="ml-1 text-xs opacity-60">(Odoo)</span>
               </span>
             )}
             <button
