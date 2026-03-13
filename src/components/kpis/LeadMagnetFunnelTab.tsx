@@ -277,8 +277,9 @@ export function LeadMagnetFunnelTab() {
               </p>
               <StageBar stage={topStage} isLast={false} />
               <p className="text-sm text-muted-foreground mt-2">
-                총 가입자 수: <span className="font-bold text-foreground">{formatNumber(imwebSignups + emailTotal)}명</span>
-                <span className="text-xs ml-2">(가입 {formatNumber(imwebSignups)} + 이메일 {formatNumber(emailTotal)})</span>
+                가입자 수: <span className="font-bold text-foreground">{formatNumber(imwebSignups)}명</span>
+                <span className="mx-2">|</span>
+                이메일: <span className="font-bold text-foreground">{formatNumber(emailTotal)}명</span>
               </p>
             </div>
 
