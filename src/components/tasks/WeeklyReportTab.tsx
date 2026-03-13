@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { useWeeklyReports } from '@/src/hooks/useWeeklyReports'
 
 const TEAM_MEMBERS = [
@@ -13,12 +13,29 @@ const TEAM_MEMBERS = [
   { name: '조희연', email: 'heeyeon@wepick.kr' },
 ]
 
-function getWeekLabel(dateStr: string) {
+function getWeekOfMonth(dateStr: string) {
   const d = new Date(dateStr)
   const month = d.getMonth() + 1
-  const firstDay = new Date(d.getFullYear(), d.getMonth(), 1)
-  const week = Math.ceil((d.getDate() + firstDay.getDay()) / 7)
-  return `${month}월 ${week - 1}주`
+  // 해당 월의 첫 번째 월요일 찾기
+  const firstOfMonth = new Date(d.getFullYear(), d.getMonth(), 1)
+  const firstMonday = new Date(firstOfMonth)
+  const dow = firstOfMonth.getDay()
+  if (dow === 0) firstMonday.setDate(firstOfMonth.getDate() + 1)
+  else if (dow > 1) firstMonday.setDate(firstOfMonth.getDate() + (8 - dow))
+  // 현재 날짜가 첫 월요일 이전이면 1주차
+  const diffDays = Math.floor((d.getTime() - firstMonday.getTime()) / (1000 * 60 * 60 * 24))
+  const week = diffDays < 0 ? 1 : Math.floor(diffDays / 7) + 1
+  return { month, week }
+}
+
+function getWeekLabel(dateStr: string) {
+  const { month, week } = getWeekOfMonth(dateStr)
+  return `${month}월 ${week}주`
+}
+
+function getWeekShortLabel(dateStr: string) {
+  const { month, week } = getWeekOfMonth(dateStr)
+  return `${month}M${week}W`
 }
 
 function formatDate(dateStr: string) {
@@ -46,6 +63,22 @@ export function WeeklyReportTab() {
   const { reports, loading, error, savePlan, generateSummary } = useWeeklyReports(
     filterEmail || undefined,
   )
+
+  // 주차별 그룹핑
+  const weekGroups = useMemo(() => {
+    const groups: Record<string, typeof reports> = {}
+    for (const r of reports) {
+      const weekKey = r.weekStart.slice(0, 10)
+      if (!groups[weekKey]) groups[weekKey] = []
+      groups[weekKey].push(r)
+    }
+    return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]))
+  }, [reports])
+
+  // 페이지네이션 (1페이지 = 1주)
+  const [weekPage, setWeekPage] = useState(0)
+  const totalWeekPages = weekGroups.length
+  const currentWeek = weekGroups[weekPage]
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -89,7 +122,7 @@ export function WeeklyReportTab() {
           onClick={() => setShowPlanForm(!showPlanForm)}
           className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
         >
-          + 이번주 계획 입력
+          + 이번 주 계획 입력
         </button>
         <button
           onClick={handleGenerate}
@@ -137,46 +170,65 @@ export function WeeklyReportTab() {
 
       {loading ? (
         <div className="py-10 text-center text-sm text-muted-foreground">데이터를 불러오는 중...</div>
+      ) : !currentWeek ? (
+        <div className="py-10 text-center text-sm text-muted-foreground">주간 보고 데이터가 없습니다.</div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border bg-muted/50">
-                <th className="px-3 py-2 text-left font-medium w-10">#</th>
-                <th className="px-3 py-2 text-left font-medium min-w-[80px]">주차구분</th>
-                <th className="px-3 py-2 text-left font-medium min-w-[90px]">지난주(월)</th>
-                <th className="px-3 py-2 text-left font-medium min-w-[250px]">지난주 한 일</th>
-                <th className="px-3 py-2 text-left font-medium min-w-[90px]">이번주(월)</th>
-                <th className="px-3 py-2 text-left font-medium min-w-[250px]">이번주 할 일</th>
-                <th className="px-3 py-2 text-left font-medium min-w-[70px]">작성자</th>
-              </tr>
-            </thead>
-            <tbody>
-              {reports.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">
-                    주간 보고 데이터가 없습니다.
-                  </td>
-                </tr>
-              ) : (
-                reports.map((r, idx) => {
-                  const weekStartDate = r.weekStart.slice(0, 10)
-                  const prevMonday = new Date(weekStartDate)
-                  prevMonday.setDate(prevMonday.getDate() - 7)
-                  const prevMondayStr = prevMonday.toISOString().slice(0, 10)
+        <>
+          {/* 주차 선택 + 이전/다음 */}
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => setWeekPage((p) => Math.min(totalWeekPages - 1, p + 1))}
+              disabled={weekPage >= totalWeekPages - 1}
+              className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted/50 disabled:opacity-40"
+            >
+              ← 이전 주
+            </button>
+            <select
+              value={weekPage}
+              onChange={(e) => setWeekPage(Number(e.target.value))}
+              className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+            >
+              {weekGroups.map(([weekStart], idx) => (
+                <option key={weekStart} value={idx}>
+                  {getWeekLabel(weekStart)} ({formatDate(weekStart)})
+                </option>
+              ))}
+            </select>
+            <button
+              onClick={() => setWeekPage((p) => Math.max(0, p - 1))}
+              disabled={weekPage <= 0}
+              className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted/50 disabled:opacity-40"
+            >
+              다음 주 →
+            </button>
+          </div>
 
-                  return (
-                    <tr key={r.id} className="border-b border-border last:border-0 hover:bg-muted/30">
-                      <td className="px-3 py-2 text-muted-foreground">{reports.length - idx}</td>
-                      <td className="px-3 py-2 font-medium">{getWeekLabel(weekStartDate)}</td>
-                      <td className="px-3 py-2 text-muted-foreground">{formatDate(prevMondayStr)}</td>
-                      <td className="px-3 py-2 whitespace-pre-wrap">
-                        {r.weeklySummary || (
-                          <span className="text-muted-foreground italic">AI 요약 대기중</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-muted-foreground">{formatDate(weekStartDate)}</td>
-                      <td className="px-3 py-2">
+          {/* 테이블 (행열 전환: 멤버가 열, 이번주/지난주가 행) */}
+          <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+            <table className="w-full text-sm table-fixed">
+              <thead>
+                <tr className="border-b border-border bg-muted/50">
+                  <th className="px-3 py-2 text-left font-medium w-[120px]"></th>
+                  {currentWeek[1].map((r) => (
+                    <th key={r.id} className="px-3 py-2 text-center font-medium">
+                      {r.authorName}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {/* 이번 주 할 일 (위) */}
+                <tr className="border-b border-border align-top">
+                  <td className="px-3 py-2 font-medium bg-muted/30 whitespace-nowrap">
+                    <div>이번 주 할 일</div>
+                    <div className="text-xs font-normal text-muted-foreground mt-0.5">
+                      {formatDate(currentWeek[0])}
+                    </div>
+                  </td>
+                  {currentWeek[1].map((r) => {
+                    const weekStartDate = r.weekStart.slice(0, 10)
+                    return (
+                      <td key={r.id} className="px-3 py-2">
                         {editingId === r.id ? (
                           <div className="space-y-2">
                             <textarea
@@ -192,7 +244,7 @@ export function WeeklyReportTab() {
                           </div>
                         ) : (
                           <div
-                            className="cursor-pointer whitespace-pre-wrap hover:bg-muted/50 rounded p-1 -m-1"
+                            className="cursor-pointer whitespace-pre-wrap hover:bg-muted/50 rounded p-1 -m-1 text-sm"
                             onClick={() => {
                               setEditingId(r.id)
                               setEditText(r.weeklyPlan || '')
@@ -204,14 +256,34 @@ export function WeeklyReportTab() {
                           </div>
                         )}
                       </td>
-                      <td className="px-3 py-2">{r.authorName}</td>
-                    </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
+                    )
+                  })}
+                </tr>
+                {/* 지난 주 한 일 (아래) */}
+                <tr className="align-top">
+                  <td className="px-3 py-2 font-medium bg-muted/30 whitespace-nowrap">
+                    <div>지난 주 한 일</div>
+                    <div className="text-xs font-normal text-muted-foreground mt-0.5">
+                      {(() => {
+                        const prevMonday = new Date(currentWeek[0])
+                        prevMonday.setDate(prevMonday.getDate() - 7)
+                        return formatDate(prevMonday.toISOString())
+                      })()}
+                    </div>
+                  </td>
+                  {currentWeek[1].map((r) => (
+                    <td key={r.id} className="px-3 py-2 whitespace-pre-wrap text-sm">
+                      {r.weeklySummary || (
+                        <span className="text-muted-foreground italic">AI 요약 대기중</span>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+        </>
       )}
     </div>
   )

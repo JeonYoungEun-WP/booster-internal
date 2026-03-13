@@ -1,8 +1,16 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useProjects } from '@/src/hooks/useProjects'
 import { ProjectForm } from './ProjectForm'
+
+interface DailyTask {
+  id: string
+  date: string
+  authorEmail: string
+  authorName: string
+  content: string
+}
 
 const STATUS_COLORS: Record<string, string> = {
   IN_PROGRESS: 'bg-blue-500',
@@ -14,6 +22,49 @@ const STATUS_LABELS: Record<string, string> = {
   IN_PROGRESS: '진행중',
   COMPLETED: '완료',
   ON_HOLD: '보류',
+}
+
+const MEMBERS = ['전영은', '권상현', '이유림', '이정하', '이정주', '조희연']
+const MEMBER_COLORS: Record<string, string> = {
+  '전영은': '#3b82f6',
+  '권상현': '#22c55e',
+  '이유림': '#a855f7',
+  '이정하': '#f97316',
+  '이정주': '#ec4899',
+  '조희연': '#14b8a6',
+}
+
+function extractAXItems(content: string): string[] {
+  const lines = content.split('\n')
+  const items: string[] = []
+  let inAXBlock = false
+
+  for (const line of lines) {
+    const trimmed = line.trim()
+    if (!trimmed) continue
+
+    if (trimmed.includes('[AX') || trimmed.includes('[프론트 AX')) {
+      inAXBlock = true
+      continue
+    }
+    if (inAXBlock && /^\[(?!AX|프론트)/.test(trimmed)) {
+      inAXBlock = false
+    }
+    if (inAXBlock && (trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('*'))) {
+      const cleaned = trimmed.replace(/^[•\-*]\s*/, '').trim()
+      if (cleaned) items.push(cleaned)
+      continue
+    }
+    if (!inAXBlock && (trimmed.includes('AX') || trimmed.includes('스프린트'))) {
+      const cleaned = trimmed
+        .replace(/^\[x\]\s*/i, '')
+        .replace(/^\*\s*/, '')
+        .replace(/^-\s*/, '')
+        .trim()
+      if (cleaned && !items.includes(cleaned)) items.push(cleaned)
+    }
+  }
+  return items
 }
 
 function getDaysInMonth(year: number, month: number) {
@@ -28,6 +79,18 @@ function isWeekend(year: number, month: number, day: number) {
 export function TimelineTab() {
   const [showForm, setShowForm] = useState(false)
   const { projects, loading, error, createProject, deleteProject } = useProjects()
+
+  // 일일 업무 데이터
+  const [tasks, setTasks] = useState<DailyTask[]>([])
+  const [tasksLoading, setTasksLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/tasks/daily')
+      .then((r) => r.json())
+      .then((d) => setTasks(d.tasks || []))
+      .catch(() => {})
+      .finally(() => setTasksLoading(false))
+  }, [])
 
   const now = new Date()
   const [viewYear, setViewYear] = useState(now.getFullYear())
@@ -204,6 +267,139 @@ export function TimelineTab() {
                 )
               })
             )}
+          </div>
+        </div>
+      )}
+
+      {/* AX 스프린트 타임라인 */}
+      <AXSprintTimeline
+        tasks={tasks}
+        loading={tasksLoading}
+        viewYear={viewYear}
+        viewMonth={viewMonth}
+        daysInMonth={daysInMonth}
+        isCurrentMonth={isCurrentMonth}
+        today={today}
+      />
+    </div>
+  )
+}
+
+function AXSprintTimeline({
+  tasks,
+  loading,
+  viewYear,
+  viewMonth,
+  daysInMonth,
+  isCurrentMonth,
+  today,
+}: {
+  tasks: DailyTask[]
+  loading: boolean
+  viewYear: number
+  viewMonth: number
+  daysInMonth: number
+  isCurrentMonth: boolean
+  today: number
+}) {
+  // member -> day -> items
+  const memberDayMap = useMemo(() => {
+    const map: Record<string, Record<number, string[]>> = {}
+    for (const m of MEMBERS) map[m] = {}
+
+    for (const task of tasks) {
+      const d = new Date(task.date)
+      if (d.getFullYear() !== viewYear || d.getMonth() !== viewMonth) continue
+      const axItems = extractAXItems(task.content)
+      if (axItems.length === 0) continue
+      const day = d.getDate()
+      if (!map[task.authorName]) map[task.authorName] = {}
+      map[task.authorName][day] = axItems
+    }
+    return map
+  }, [tasks, viewYear, viewMonth])
+
+  const hasData = MEMBERS.some((m) => Object.keys(memberDayMap[m] || {}).length > 0)
+
+  if (loading) return null
+
+  return (
+    <div className="space-y-3">
+      <h3 className="text-lg font-bold">AX 스프린트</h3>
+      {!hasData ? (
+        <div className="rounded-xl border border-border bg-card p-6 text-center text-sm text-muted-foreground shadow-sm">
+          이 달의 AX 스프린트 데이터가 없습니다.
+        </div>
+      ) : (
+        <div className="overflow-x-auto rounded-xl border border-border bg-card shadow-sm">
+          <div className="min-w-[900px]">
+            {/* 일자 헤더 */}
+            <div className="flex border-b border-border">
+              <div className="w-24 shrink-0 border-r border-border px-3 py-1.5 text-xs font-medium text-muted-foreground">
+                멤버
+              </div>
+              <div className="flex flex-1">
+                {Array.from({ length: daysInMonth }, (_, i) => {
+                  const day = i + 1
+                  const weekend = isWeekend(viewYear, viewMonth, day)
+                  const isToday = isCurrentMonth && day === today
+                  return (
+                    <div
+                      key={day}
+                      className={`flex-1 min-w-[28px] text-center text-xs py-1.5 border-r border-border last:border-r-0
+                        ${weekend ? 'bg-muted/70 text-muted-foreground' : ''}
+                        ${isToday ? 'bg-primary/10 font-bold text-primary' : ''}`}
+                    >
+                      {day}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* 멤버별 행 */}
+            {MEMBERS.map((member) => {
+              const dayMap = memberDayMap[member] || {}
+              const hasMemberData = Object.keys(dayMap).length > 0
+              if (!hasMemberData) return null
+              const color = MEMBER_COLORS[member] || '#6b7280'
+
+              return (
+                <div key={member} className="flex border-b border-border last:border-0 group">
+                  <div className="w-24 shrink-0 border-r border-border px-3 py-2 flex items-center">
+                    <span className="text-xs font-medium">{member}</span>
+                  </div>
+                  <div className="flex flex-1 relative">
+                    {Array.from({ length: daysInMonth }, (_, i) => {
+                      const day = i + 1
+                      const weekend = isWeekend(viewYear, viewMonth, day)
+                      const isToday = isCurrentMonth && day === today
+                      const items = dayMap[day]
+                      return (
+                        <div
+                          key={day}
+                          className={`flex-1 min-w-[28px] border-r border-border last:border-r-0 relative
+                            ${weekend ? 'bg-muted/40' : ''}
+                            ${isToday ? 'bg-primary/5' : ''}`}
+                        >
+                          {items && items.length > 0 && (
+                            <div
+                              className="absolute inset-x-0.5 top-1 bottom-1 rounded opacity-80 cursor-pointer group/cell"
+                              style={{ backgroundColor: color }}
+                              title={items.map((it) => '• ' + it).join('\n')}
+                            >
+                              <div className="text-[9px] text-white font-medium px-0.5 py-0.5 leading-tight truncate">
+                                {items.length}건
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })}
           </div>
         </div>
       )}

@@ -1,31 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { ExternalAccountClient } from 'google-auth-library'
+import { GoogleAuth } from 'google-auth-library'
 
 const GA4_PROPERTY_ID = process.env.GA4_PROPERTY_ID
-const GCP_PROJECT_NUMBER = process.env.GCP_PROJECT_NUMBER
-const GCP_SERVICE_ACCOUNT_EMAIL = process.env.GCP_SERVICE_ACCOUNT_EMAIL
-const GCP_POOL_ID = process.env.GCP_WORKLOAD_IDENTITY_POOL_ID
-const GCP_PROVIDER_ID = process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID
-
 const GA4_API = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PROPERTY_ID}:runReport`
 
+// GA4 인증: 아래 순서로 시도
+// 1. GCP_SA_KEY_JSON 환경변수 (서비스 계정 키 JSON)
+// 2. Application Default Credentials (gcloud auth application-default login)
 async function getAccessToken(): Promise<string> {
-  // Vercel OIDC를 통한 Workload Identity Federation
-  const { getVercelOidcToken } = await import('@vercel/oidc')
+  const keyJson = process.env.GCP_SA_KEY_JSON
 
-  const client = ExternalAccountClient.fromJSON({
-    type: 'external_account',
-    audience: `//iam.googleapis.com/projects/${GCP_PROJECT_NUMBER}/locations/global/workloadIdentityPools/${GCP_POOL_ID}/providers/${GCP_PROVIDER_ID}`,
-    subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
-    token_url: 'https://sts.googleapis.com/v1/token',
-    service_account_impersonation_url: `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${GCP_SERVICE_ACCOUNT_EMAIL}:generateAccessToken`,
-    subject_token_supplier: {
-      getSubjectToken: async () => getVercelOidcToken(),
-    },
-  })
+  const authOptions: ConstructorParameters<typeof GoogleAuth>[0] = {
+    scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
+    projectId: 'project-150ad5c5-0e90-4383-9bc',
+  }
 
-  if (!client) throw new Error('Failed to create auth client')
+  if (keyJson) {
+    authOptions.credentials = JSON.parse(keyJson)
+  }
+  // keyJson이 없으면 ADC(Application Default Credentials)를 자동으로 사용
 
+  const auth = new GoogleAuth(authOptions)
+  const client = await auth.getClient()
   const { token } = await client.getAccessToken()
   if (!token) throw new Error('Failed to get access token')
   return token
@@ -37,6 +33,7 @@ async function runReport(accessToken: string, body: object) {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
+      'x-goog-user-project': 'project-150ad5c5-0e90-4383-9bc',
     },
     body: JSON.stringify(body),
   })
@@ -61,8 +58,8 @@ function extractTotals(report: { totals?: { metricValues?: { value: string }[] }
 
 export async function GET(request: NextRequest) {
   try {
-    if (!GA4_PROPERTY_ID || !GCP_PROJECT_NUMBER) {
-      return NextResponse.json({ error: 'GA4 not configured' }, { status: 503 })
+    if (!GA4_PROPERTY_ID) {
+      return NextResponse.json({ error: 'GA4_PROPERTY_ID not configured' }, { status: 503 })
     }
 
     const { searchParams } = new URL(request.url)
@@ -72,17 +69,15 @@ export async function GET(request: NextRequest) {
     const accessToken = await getAccessToken()
     const dateRange = { startDate, endDate }
 
-    // 병렬 요청: 방문자+PV, 세션소스, 채널그룹, 트랙별 페이지, 일별 추이
     const [overviewReport, sourceReport, channelReport, pageReport, dailyReport] = await Promise.all([
-      // 1. 전체 방문자 + 페이지뷰
       runReport(accessToken, {
         dateRanges: [dateRange],
         metrics: [
           { name: 'totalUsers' },
           { name: 'screenPageViews' },
         ],
+        metricAggregations: ['TOTAL'],
       }),
-      // 2. 세션 소스 TOP 10
       runReport(accessToken, {
         dateRanges: [dateRange],
         dimensions: [{ name: 'sessionSource' }],
@@ -90,7 +85,6 @@ export async function GET(request: NextRequest) {
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
         limit: 10,
       }),
-      // 3. 채널 그룹 TOP 10
       runReport(accessToken, {
         dateRanges: [dateRange],
         dimensions: [{ name: 'sessionDefaultChannelGroup' }],
@@ -98,7 +92,6 @@ export async function GET(request: NextRequest) {
         orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
         limit: 10,
       }),
-      // 4. 트랙별 페이지 세션 (simulator, ebook, insight)
       runReport(accessToken, {
         dateRanges: [dateRange],
         dimensions: [{ name: 'pagePath' }],
@@ -114,7 +107,6 @@ export async function GET(request: NextRequest) {
           },
         },
       }),
-      // 5. 일별 방문자 추이
       runReport(accessToken, {
         dateRanges: [dateRange],
         dimensions: [{ name: 'date' }],
@@ -123,7 +115,6 @@ export async function GET(request: NextRequest) {
       }),
     ])
 
-    // 파싱
     const totals = extractTotals(overviewReport)
     const totalVisitors = totals[0] || 0
     const totalPageViews = totals[1] || 0
@@ -138,7 +129,6 @@ export async function GET(request: NextRequest) {
       sessions: r.metric,
     }))
 
-    // 트랙별 세션 집계
     const pageRows = extractRows(pageReport)
     let simulator = 0, ebook = 0, insight = 0
     for (const row of pageRows) {

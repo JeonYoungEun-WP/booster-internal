@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import Link from 'next/link'
 import { DailyTaskTab } from '@/src/components/tasks/DailyTaskTab'
 import { WeeklyReportTab } from '@/src/components/tasks/WeeklyReportTab'
 import { TimelineTab } from '@/src/components/tasks/TimelineTab'
@@ -20,13 +19,6 @@ export default function TasksPage() {
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">
       <div className="mx-auto max-w-7xl space-y-6">
-        {/* 헤더 */}
-        <div className="flex items-center gap-4">
-          <Link href="/kpis" className="text-sm text-primary hover:underline">
-            &larr; KPI 대시보드
-          </Link>
-        </div>
-
         <h1 className="text-2xl font-bold">업무 관리</h1>
 
         {/* 탭 */}

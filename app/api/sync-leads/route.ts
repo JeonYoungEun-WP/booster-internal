@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { auth } from '@/lib/auth';
 
 const ODOO_URL = process.env.ODOO_URL || 'https://works.wepick.kr';
 const ODOO_DB = process.env.ODOO_DB || 'works';
@@ -79,12 +78,12 @@ function mapLeadToRow(lead: Record<string, unknown>) {
 
 export async function GET(request: NextRequest) {
   try {
-    const session = await auth();
-    if (!session?.user) {
+    // 내부 프로젝트 — CRON_SECRET으로 인증
+    const { searchParams } = new URL(request.url);
+    const secret = searchParams.get('secret');
+    if (secret !== process.env.CRON_SECRET && process.env.CRON_SECRET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-
-    const { searchParams } = new URL(request.url);
     const mode = searchParams.get('mode');
 
     const uid = await odooRpc('common', 'authenticate', [

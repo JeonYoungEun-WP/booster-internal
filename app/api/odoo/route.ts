@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     if (!uid) return NextResponse.json({ error: 'Odoo auth failed' }, { status: 500 })
 
     if (action === 'lead-funnel') {
-      // 날짜 필터 도메인
+      // 전체 리드 조회 (lead + opportunity) + 날짜 필터
       const domain: unknown[] = []
       if (startDate) domain.push(['create_date', '>=', startDate])
       if (endDate) domain.push(['create_date', '<=', endDate + ' 23:59:59'])

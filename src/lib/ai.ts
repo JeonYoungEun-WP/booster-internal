@@ -77,7 +77,16 @@ export async function generateWeeklySummary(
     const prompt = `다음은 ${memberName}의 ${startDate} ~ ${endDate} 주간 업무 내역입니다:
 ${entries}
 
-위 내용을 바탕으로 주간 업무 요약을 작성해주세요. 간결하게 핵심 성과와 진행 사항을 정리해주세요. 마크다운 없이 텍스트로만 작성해주세요.`
+위 내용을 바탕으로 주간 업무 요약을 작성해주세요.
+
+규칙:
+1. 매일 반복되는 루틴 업무(일일 리드수 확인, 성과 입력, 데일리 스크럼 등)는 "루틴 업무 수행" 한 줄로 통합
+2. 같은 프로젝트/주제의 업무는 하나로 묶어서 진행 경과를 요약 (예: "AX 스프린트: 통합본 수정 → 리뷰 → 반영 완료")
+3. 회의/미팅은 중요한 것만 결과 위주로 정리
+4. 회고 내용은 핵심 인사이트 한 줄로 축약
+5. 완료된 것과 진행 중인 것을 구분
+6. 총 5~8줄 이내로 요약
+7. 마크다운 없이 텍스트로만, 각 항목은 "• " 로 시작`
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
@@ -91,12 +100,20 @@ ${entries}
     )
 
     if (!res.ok) {
+      const errText = await res.text()
+      console.error('Gemini API error:', res.status, errText.slice(0, 300))
       return dailyEntries.map((e) => `[${e.date}] ${e.content}`).join('\n')
     }
 
     const data = await res.json()
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || '요약 생성 실패'
-  } catch {
+    const result = data.candidates?.[0]?.content?.parts?.[0]?.text
+    if (!result) {
+      console.error('Gemini empty response:', JSON.stringify(data).slice(0, 300))
+      return '요약 생성 실패'
+    }
+    return result
+  } catch (err) {
+    console.error('Gemini summary error:', err)
     return dailyEntries.map((e) => `[${e.date}] ${e.content}`).join('\n')
   }
 }
