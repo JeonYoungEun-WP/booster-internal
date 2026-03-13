@@ -96,7 +96,6 @@ async function runReport(accessToken: string, body: object) {
     headers: {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json',
-      'x-goog-user-project': 'project-150ad5c5-0e90-4383-9bc',
     },
     body: JSON.stringify(body),
   })
