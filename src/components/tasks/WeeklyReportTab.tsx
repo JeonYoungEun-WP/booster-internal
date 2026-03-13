@@ -217,10 +217,10 @@ export function WeeklyReportTab() {
                 </tr>
               </thead>
               <tbody>
-                {/* 이번 주 할 일 (위) */}
+                {/* 이번 주 계획 */}
                 <tr className="border-b border-border align-top">
                   <td className="px-3 py-2 font-medium bg-muted/30 whitespace-nowrap">
-                    <div>이번 주 할 일</div>
+                    <div>이번 주 계획</div>
                     <div className="text-xs font-normal text-muted-foreground mt-0.5">
                       {formatDate(currentWeek[0])}
                     </div>
@@ -259,10 +259,37 @@ export function WeeklyReportTab() {
                     )
                   })}
                 </tr>
-                {/* 지난 주 한 일 (아래) */}
+                {/* 지난 주 계획 */}
+                <tr className="border-b border-border align-top">
+                  <td className="px-3 py-2 font-medium bg-muted/30 whitespace-nowrap">
+                    <div>지난 주 계획</div>
+                    <div className="text-xs font-normal text-muted-foreground mt-0.5">
+                      {(() => {
+                        const prevMonday = new Date(currentWeek[0])
+                        prevMonday.setDate(prevMonday.getDate() - 7)
+                        return formatDate(prevMonday.toISOString())
+                      })()}
+                    </div>
+                  </td>
+                  {currentWeek[1].map((r) => {
+                    // 이전 주 데이터에서 같은 팀원의 weeklyPlan 가져오기
+                    const prevWeekGroup = weekGroups[weekPage + 1]
+                    const prevPlan = prevWeekGroup
+                      ? prevWeekGroup[1].find((pr) => pr.authorEmail === r.authorEmail)?.weeklyPlan
+                      : null
+                    return (
+                      <td key={`prev-plan-${r.id}`} className="px-3 py-2 whitespace-pre-wrap text-sm">
+                        {prevPlan || (
+                          <span className="text-muted-foreground italic">계획 없음</span>
+                        )}
+                      </td>
+                    )
+                  })}
+                </tr>
+                {/* 지난 주 결과 */}
                 <tr className="align-top">
                   <td className="px-3 py-2 font-medium bg-muted/30 whitespace-nowrap">
-                    <div>지난 주 한 일</div>
+                    <div>지난 주 결과</div>
                     <div className="text-xs font-normal text-muted-foreground mt-0.5">
                       {(() => {
                         const prevMonday = new Date(currentWeek[0])
@@ -272,7 +299,7 @@ export function WeeklyReportTab() {
                     </div>
                   </td>
                   {currentWeek[1].map((r) => (
-                    <td key={r.id} className="px-3 py-2 whitespace-pre-wrap text-sm">
+                    <td key={`summary-${r.id}`} className="px-3 py-2 whitespace-pre-wrap text-sm">
                       {r.weeklySummary || (
                         <span className="text-muted-foreground italic">AI 요약 대기중</span>
                       )}
