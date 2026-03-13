@@ -268,13 +268,23 @@ function WeeklyComment({
   const prevTrackTotal = prevTrack.simulator + prevTrack.ebook + prevTrack.insight;
   const trackChange = calcChange(trackTotal, prevTrackTotal);
 
-  // 일별 트렌드 분석 - 주말 vs 평일
+  // 일별 트렌드 분석 - B2B 특성상 평일 기준으로 분석 (토/일 트래픽 저조는 정상)
+  const weekdayTrend = currentFull.dailyTrend.filter(d => {
+    if (!d.date) return true;
+    const y = parseInt(d.date.slice(0, 4));
+    const m = parseInt(d.date.slice(4, 6)) - 1;
+    const day = parseInt(d.date.slice(6));
+    const dow = new Date(y, m, day).getDay();
+    return dow !== 0 && dow !== 6; // 토/일 제외
+  });
   const dailyVisitors = currentFull.dailyTrend.map(d => d.visitors);
+  const weekdayVisitors = weekdayTrend.map(d => d.visitors);
   const maxDay = currentFull.dailyTrend.reduce((max, d) => d.visitors > max.visitors ? d : max, currentFull.dailyTrend[0]);
-  const minDay = currentFull.dailyTrend.reduce((min, d) => d.visitors < min.visitors ? d : min, currentFull.dailyTrend[0]);
+  const minWeekday = weekdayTrend.length > 0 ? weekdayTrend.reduce((min, d) => d.visitors < min.visitors ? d : min, weekdayTrend[0]) : null;
   const avgDaily = dailyVisitors.length > 0 ? Math.round(dailyVisitors.reduce((a, b) => a + b, 0) / dailyVisitors.length) : 0;
-  const volatility = avgDaily > 0 && dailyVisitors.length > 0
-    ? Math.round(Math.sqrt(dailyVisitors.reduce((s, v) => s + (v - avgDaily) ** 2, 0) / dailyVisitors.length))
+  const avgWeekday = weekdayVisitors.length > 0 ? Math.round(weekdayVisitors.reduce((a, b) => a + b, 0) / weekdayVisitors.length) : 0;
+  const weekdayVolatility = avgWeekday > 0 && weekdayVisitors.length > 0
+    ? Math.round(Math.sqrt(weekdayVisitors.reduce((s, v) => s + (v - avgWeekday) ** 2, 0) / weekdayVisitors.length))
     : 0;
 
   // Direct 비율 (브랜드 인지도 지표)
@@ -317,12 +327,12 @@ function WeeklyComment({
     `\u2022 [리드마그넷] 트랙 페이지 총 ${formatNumber(trackTotal)}세션(${arrow(trackChange)}${fmtPct(trackChange)}): e-book ${track.ebook}, 인사이트 ${track.insight}, 시뮬레이터 ${track.simulator}. ${track.simulator === 0 ? '시뮬레이터 유입이 0입니다. 시뮬레이터 CTA 노출 및 도달 경로를 점검하세요.' : ''}`
   );
 
-  // 7. 일별 변동성
-  if (maxDay && minDay) {
+  // 7. 일별 변동성 (B2B 특성: 토/일 저조는 정상이므로 평일 기준 분석)
+  if (maxDay && minWeekday) {
     const maxDate = maxDay.date ? `${maxDay.date.slice(4, 6)}/${maxDay.date.slice(6)}` : '';
-    const minDate = minDay.date ? `${minDay.date.slice(4, 6)}/${minDay.date.slice(6)}` : '';
+    const minWdDate = minWeekday.date ? `${minWeekday.date.slice(4, 6)}/${minWeekday.date.slice(6)}` : '';
     comments.push(
-      `\u2022 [일별 변동] 최고 ${maxDate}(${maxDay.visitors}명) vs 최저 ${minDate}(${minDay.visitors}명). 표준편차 ${volatility}명. ${volatility > avgDaily * 0.4 ? '일별 변동이 크므로 특정 요일/이벤트에 트래픽이 집중되는지 확인하세요.' : '일별 트래픽이 비교적 고르게 분포되어 있습니다.'}`
+      `\u2022 [일별 변동] 평일 평균 ${avgWeekday}명, 최고 ${maxDate}(${maxDay.visitors}명), 평일 최저 ${minWdDate}(${minWeekday.visitors}명). 평일 표준편차 ${weekdayVolatility}명. ${weekdayVolatility > avgWeekday * 0.4 ? '평일 내 변동이 크므로 특정 요일/이벤트에 트래픽이 집중되는지 확인하세요.' : '평일 트래픽이 비교적 고르게 분포되어 있습니다.'} (B2B 특성상 주말 트래픽 저조는 정상)`
     );
   }
 
