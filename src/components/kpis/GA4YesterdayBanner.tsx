@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Users, Eye } from 'lucide-react';
-import { fetchGA4Data } from '@/src/lib/ga4';
+import { fetchGA4Data, type GA4Data } from '@/src/lib/ga4';
 import { formatNumber } from '@/src/lib/format';
 
 interface PeriodStats {
@@ -28,6 +28,8 @@ export function GA4YesterdayBanner() {
   const [dayBeforeStats, setDayBeforeStats] = useState<PeriodStats | null>(null);
   const [lastWeekStats, setLastWeekStats] = useState<PeriodStats | null>(null);
   const [prevWeekStats, setPrevWeekStats] = useState<PeriodStats | null>(null);
+  const [lastWeekFull, setLastWeekFull] = useState<GA4Data | null>(null);
+  const [prevWeekFull, setPrevWeekFull] = useState<GA4Data | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
@@ -68,8 +70,14 @@ export function GA4YesterdayBanner() {
       .then(([yd, db, lw, pw]) => {
         if (yd) setYesterdayStats({ visitors: yd.totalVisitors, pageViews: yd.totalPageViews });
         if (db) setDayBeforeStats({ visitors: db.totalVisitors, pageViews: db.totalPageViews });
-        if (lw) setLastWeekStats({ visitors: lw.totalVisitors, pageViews: lw.totalPageViews });
-        if (pw) setPrevWeekStats({ visitors: pw.totalVisitors, pageViews: pw.totalPageViews });
+        if (lw) {
+          setLastWeekStats({ visitors: lw.totalVisitors, pageViews: lw.totalPageViews });
+          setLastWeekFull(lw);
+        }
+        if (pw) {
+          setPrevWeekStats({ visitors: pw.totalVisitors, pageViews: pw.totalPageViews });
+          setPrevWeekFull(pw);
+        }
         setLoading(false);
       })
       .catch(() => {
@@ -113,10 +121,12 @@ export function GA4YesterdayBanner() {
         loading={loading}
         error={error}
       />
-      {!loading && !error && lastWeekStats && prevWeekStats && (
+      {!loading && !error && lastWeekStats && prevWeekStats && lastWeekFull && prevWeekFull && (
         <WeeklyComment
           current={lastWeekStats}
           previous={prevWeekStats}
+          currentFull={lastWeekFull}
+          previousFull={prevWeekFull}
         />
       )}
     </div>
@@ -209,31 +219,142 @@ function ChangeRate({ current, previous }: { current: number; previous: number }
   );
 }
 
-function WeeklyComment({ current, previous }: { current: PeriodStats; previous: PeriodStats }) {
+function WeeklyComment({
+  current, previous, currentFull, previousFull,
+}: {
+  current: PeriodStats; previous: PeriodStats;
+  currentFull: GA4Data; previousFull: GA4Data;
+}) {
   const visitorChange = calcChange(current.visitors, previous.visitors);
   const pvChange = calcChange(current.pageViews, previous.pageViews);
-  const pagesPerVisitor = current.visitors > 0 ? (current.pageViews / current.visitors).toFixed(1) : '0';
-  const prevPagesPerVisitor = previous.visitors > 0 ? (previous.pageViews / previous.visitors).toFixed(1) : '0';
+  const pagesPerVisitor = current.visitors > 0 ? (current.pageViews / current.visitors) : 0;
+  const prevPagesPerVisitor = previous.visitors > 0 ? (previous.pageViews / previous.visitors) : 0;
+  const ppvChange = calcChange(pagesPerVisitor, prevPagesPerVisitor);
 
-  const visitorTrend = visitorChange !== null && visitorChange > 0 ? '증가' : visitorChange !== null && visitorChange < 0 ? '감소' : '유지';
-  const pvTrend = pvChange !== null && pvChange > 0 ? '증가' : pvChange !== null && pvChange < 0 ? '감소' : '유지';
+  const fmtPct = (v: number | null) => v !== null ? `${v > 0 ? '+' : ''}${v.toFixed(1)}%` : '-';
+  const arrow = (v: number | null) => v !== null && v > 0 ? '\u25B2' : v !== null && v < 0 ? '\u25BC' : '';
 
-  const comments = [
-    `\u2022 주간 방문자 ${formatNumber(current.visitors)}명으로 전주 대비 ${visitorTrend}했습니다.`,
-    `\u2022 페이지뷰 ${formatNumber(current.pageViews)}회로 전주 대비 ${pvTrend} 추세입니다.`,
-    `\u2022 방문자당 평균 ${pagesPerVisitor}페이지를 조회했습니다. (전주 ${prevPagesPerVisitor}페이지)`,
-    `\u2022 일 평균 방문자는 ${formatNumber(Math.round(current.visitors / 7))}명입니다.`,
-    visitorChange !== null && visitorChange > 5
-      ? '\u2022 트래픽이 눈에 띄게 상승 중이므로 전환율 최적화에 집중할 시점입니다.'
-      : visitorChange !== null && visitorChange < -5
-        ? '\u2022 트래픽이 하락세이므로 유입 채널별 성과를 점검해 보세요.'
-        : '\u2022 트래픽이 안정적으로 유지되고 있어 콘텐츠 품질 개선에 집중하세요.',
-  ];
+  // 채널 분석
+  const totalSessions = currentFull.channelGroups.reduce((s, c) => s + c.sessions, 0);
+  const prevTotalSessions = previousFull.channelGroups.reduce((s, c) => s + c.sessions, 0);
+  const topChannel = currentFull.channelGroups[0];
+  const topChannelPrev = previousFull.channelGroups.find(c => c.channel === topChannel?.channel);
+  const topChannelChange = topChannel && topChannelPrev ? calcChange(topChannel.sessions, topChannelPrev.sessions) : null;
+
+  // 소스 분석
+  const topSource = currentFull.sessionSources[0];
+  const topSourcePrev = previousFull.sessionSources.find(s => s.source === topSource?.source);
+  const topSourceChange = topSource && topSourcePrev ? calcChange(topSource.sessions, topSourcePrev.sessions) : null;
+
+  // Organic vs Paid 비율
+  const organicSessions = currentFull.channelGroups
+    .filter(c => c.channel.toLowerCase().includes('organic'))
+    .reduce((s, c) => s + c.sessions, 0);
+  const paidSessions = currentFull.channelGroups
+    .filter(c => c.channel.toLowerCase().includes('paid'))
+    .reduce((s, c) => s + c.sessions, 0);
+  const organicRatio = totalSessions > 0 ? ((organicSessions / totalSessions) * 100).toFixed(1) : '0';
+  const paidRatio = totalSessions > 0 ? ((paidSessions / totalSessions) * 100).toFixed(1) : '0';
+
+  const prevOrganicSessions = previousFull.channelGroups
+    .filter(c => c.channel.toLowerCase().includes('organic'))
+    .reduce((s, c) => s + c.sessions, 0);
+  const organicChange = calcChange(organicSessions, prevOrganicSessions);
+
+  // 트랙 페이지 분석
+  const track = currentFull.trackPageSessions;
+  const prevTrack = previousFull.trackPageSessions;
+  const trackTotal = track.simulator + track.ebook + track.insight;
+  const prevTrackTotal = prevTrack.simulator + prevTrack.ebook + prevTrack.insight;
+  const trackChange = calcChange(trackTotal, prevTrackTotal);
+
+  // 일별 트렌드 분석 - 주말 vs 평일
+  const dailyVisitors = currentFull.dailyTrend.map(d => d.visitors);
+  const maxDay = currentFull.dailyTrend.reduce((max, d) => d.visitors > max.visitors ? d : max, currentFull.dailyTrend[0]);
+  const minDay = currentFull.dailyTrend.reduce((min, d) => d.visitors < min.visitors ? d : min, currentFull.dailyTrend[0]);
+  const avgDaily = dailyVisitors.length > 0 ? Math.round(dailyVisitors.reduce((a, b) => a + b, 0) / dailyVisitors.length) : 0;
+  const volatility = avgDaily > 0 && dailyVisitors.length > 0
+    ? Math.round(Math.sqrt(dailyVisitors.reduce((s, v) => s + (v - avgDaily) ** 2, 0) / dailyVisitors.length))
+    : 0;
+
+  // Direct 비율 (브랜드 인지도 지표)
+  const directSessions = currentFull.channelGroups.find(c => c.channel === 'Direct')?.sessions || 0;
+  const directRatio = totalSessions > 0 ? ((directSessions / totalSessions) * 100).toFixed(1) : '0';
+
+  const comments: string[] = [];
+
+  // 1. 핵심 요약
+  comments.push(
+    `\u2022 [핵심] 주간 방문자 ${formatNumber(current.visitors)}명(${arrow(visitorChange)}${fmtPct(visitorChange)}), PV ${formatNumber(current.pageViews)}회(${arrow(pvChange)}${fmtPct(pvChange)}). 일 평균 ${formatNumber(avgDaily)}명 방문.`
+  );
+
+  // 2. 인당 페이지뷰 (콘텐츠 품질 지표)
+  comments.push(
+    `\u2022 [콘텐츠 품질] 방문자당 ${pagesPerVisitor.toFixed(1)}페이지 조회(전주 ${prevPagesPerVisitor.toFixed(1)}p, ${fmtPct(ppvChange)}). ${ppvChange !== null && ppvChange < -5 ? '콘텐츠 소비 깊이가 감소하고 있어 랜딩 페이지 및 내부 링크 구조 점검이 필요합니다.' : ppvChange !== null && ppvChange > 5 ? '콘텐츠 소비가 깊어지고 있어 긍정적입니다.' : '안정적으로 유지 중입니다.'}`
+  );
+
+  // 3. 채널 분석
+  if (topChannel) {
+    comments.push(
+      `\u2022 [채널] 최대 유입 채널은 "${topChannel.channel}"(${topChannel.sessions}세션, ${arrow(topChannelChange)}${fmtPct(topChannelChange)}). Organic ${organicRatio}% vs Paid ${paidRatio}% vs Direct ${directRatio}%.`
+    );
+  }
+
+  // 4. Organic 성과 점검
+  comments.push(
+    `\u2022 [SEO] 오가닉 유입 ${formatNumber(organicSessions)}세션(${arrow(organicChange)}${fmtPct(organicChange)}). ${organicChange !== null && organicChange < -10 ? '오가닉 유입이 크게 감소했습니다. 검색 순위 변동, 키워드 커버리지, 콘텐츠 발행 빈도를 점검하세요.' : organicChange !== null && organicChange > 10 ? 'SEO 성과가 개선되고 있습니다. 상위 키워드를 확인하고 관련 콘텐츠를 확장하세요.' : '오가닉 유입은 안정적입니다. 신규 키워드 타겟팅으로 성장 기회를 모색하세요.'}`
+  );
+
+  // 5. 소스 분석
+  if (topSource) {
+    comments.push(
+      `\u2022 [소스] 1위 유입 소스 "${topSource.source}"(${topSource.sessions}세션, ${arrow(topSourceChange)}${fmtPct(topSourceChange)}). ${topSource.source === '(direct)' ? 'Direct 비중이 높아 브랜드 인지도는 양호하나, 신규 유입 채널 다변화가 필요합니다.' : `${topSource.source} 의존도가 높으므로 채널 다변화를 검토하세요.`}`
+    );
+  }
+
+  // 6. 리드마그넷 트랙 성과
+  comments.push(
+    `\u2022 [리드마그넷] 트랙 페이지 총 ${formatNumber(trackTotal)}세션(${arrow(trackChange)}${fmtPct(trackChange)}): e-book ${track.ebook}, 인사이트 ${track.insight}, 시뮬레이터 ${track.simulator}. ${track.simulator === 0 ? '시뮬레이터 유입이 0입니다. 시뮬레이터 CTA 노출 및 도달 경로를 점검하세요.' : ''}`
+  );
+
+  // 7. 일별 변동성
+  if (maxDay && minDay) {
+    const maxDate = maxDay.date ? `${maxDay.date.slice(4, 6)}/${maxDay.date.slice(6)}` : '';
+    const minDate = minDay.date ? `${minDay.date.slice(4, 6)}/${minDay.date.slice(6)}` : '';
+    comments.push(
+      `\u2022 [일별 변동] 최고 ${maxDate}(${maxDay.visitors}명) vs 최저 ${minDate}(${minDay.visitors}명). 표준편차 ${volatility}명. ${volatility > avgDaily * 0.4 ? '일별 변동이 크므로 특정 요일/이벤트에 트래픽이 집중되는지 확인하세요.' : '일별 트래픽이 비교적 고르게 분포되어 있습니다.'}`
+    );
+  }
+
+  // 8. Direct 비율 (브랜드 인지도)
+  comments.push(
+    `\u2022 [브랜드] Direct 유입 ${directRatio}%(${formatNumber(directSessions)}세션). ${Number(directRatio) > 40 ? 'Direct 비중이 40%를 초과하여 브랜드 인지도는 양호하나, UTM 태깅 누락으로 인한 오분류 가능성도 점검하세요.' : Number(directRatio) < 20 ? 'Direct 비중이 낮아 브랜드 인지도 강화(뉴스레터, SNS 등)가 필요합니다.' : '브랜드 인지도 수준은 적정 범위입니다.'}`
+  );
+
+  // 9. 전환 기회 점검
+  const sessionChange = calcChange(totalSessions, prevTotalSessions);
+  comments.push(
+    `\u2022 [전환] 총 세션 ${formatNumber(totalSessions)}(${arrow(sessionChange)}${fmtPct(sessionChange)}). ${sessionChange !== null && sessionChange > 5 && (ppvChange === null || ppvChange < 0) ? '트래픽은 증가하지만 페이지 소비가 감소하고 있어, 랜딩 페이지 이탈률과 CTA 클릭률 점검이 시급합니다.' : sessionChange !== null && sessionChange < -5 ? '세션이 감소 추세이므로 광고 예산 배분 및 콘텐츠 발행 전략을 재점검하세요.' : '트래픽과 콘텐츠 소비가 균형을 이루고 있습니다. 전환율 최적화(CRO)에 집중하세요.'}`
+  );
+
+  // 10. 종합 액션 아이템
+  const issues: string[] = [];
+  if (visitorChange !== null && visitorChange < -5) issues.push('방문자 감소');
+  if (organicChange !== null && organicChange < -10) issues.push('오가닉 유입 하락');
+  if (ppvChange !== null && ppvChange < -5) issues.push('콘텐츠 소비 감소');
+  if (track.simulator === 0) issues.push('시뮬레이터 유입 없음');
+  if (Number(directRatio) > 40) issues.push('UTM 태깅 점검');
+
+  comments.push(
+    issues.length > 0
+      ? `\u2022 [액션] 이번 주 점검 포인트: ${issues.join(', ')}. 우선순위별로 원인 파악 및 개선 조치를 진행하세요.`
+      : '\u2022 [액션] 전반적으로 양호합니다. 기존 성과를 유지하면서 신규 콘텐츠와 채널 실험을 확대하세요.'
+  );
 
   return (
     <div className="rounded-lg bg-muted/50 px-4 py-3">
-      <p className="text-xs font-semibold text-muted-foreground mb-2">주간 트래픽 코멘트</p>
-      <div className="space-y-1">
+      <p className="text-xs font-semibold text-muted-foreground mb-2">주간 트래픽 심층 분석</p>
+      <div className="space-y-1.5">
         {comments.map((comment, i) => (
           <p key={i} className="text-xs text-muted-foreground leading-relaxed">{comment}</p>
         ))}
