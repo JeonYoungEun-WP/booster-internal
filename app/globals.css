@@ -26,3 +26,19 @@ body {
   color: var(--color-text-dark);
   font-family: var(--font-sans);
 }
+
+/* Teams 데일리 회고 HTML 콘텐츠 스타일 */
+.teams-content ul {
+  list-style-type: disc;
+  padding-left: 1.5em;
+  margin: 0.25em 0;
+}
+
+.teams-content ul ul {
+  list-style-type: circle;
+  padding-left: 1.5em;
+}
+
+.teams-content li {
+  margin: 0.1em 0;
+}
