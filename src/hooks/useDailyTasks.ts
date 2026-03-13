@@ -55,11 +55,21 @@ export function useDailyTasks(options: UseDailyTasksOptions = {}) {
     await fetchTasks()
   }
 
+  const updateTask = async (id: string, content: string) => {
+    const res = await fetch(`/api/tasks/daily/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    })
+    if (!res.ok) throw new Error('Failed to update')
+    await fetchTasks()
+  }
+
   const deleteTask = async (id: string) => {
     const res = await fetch(`/api/tasks/daily/${id}`, { method: 'DELETE' })
     if (!res.ok) throw new Error('Failed to delete')
     await fetchTasks()
   }
 
-  return { tasks, loading, error, refetch: fetchTasks, createTask, deleteTask }
+  return { tasks, loading, error, refetch: fetchTasks, createTask, updateTask, deleteTask }
 }

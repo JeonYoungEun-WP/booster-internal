@@ -26,13 +26,29 @@ function formatDateLabel(dateStr: string) {
   return `${dateStr} (${days[d.getDay()]})`
 }
 
+function htmlToPlainText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/li>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 export function DailyTaskTab() {
   const [startDate, setStartDate] = useState(getKSTDate(-6))
   const [endDate, setEndDate] = useState(getKSTDate())
   const [filterEmail, setFilterEmail] = useState('')
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editContent, setEditContent] = useState('')
 
-  const { tasks, loading, error, refetch, createTask, deleteTask } = useDailyTasks({
+  const { tasks, loading, error, refetch, createTask, updateTask, deleteTask } = useDailyTasks({
     startDate,
     endDate,
     authorEmail: filterEmail || undefined,
@@ -47,6 +63,23 @@ export function DailyTaskTab() {
   }, {})
 
   const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a))
+
+  const startEditing = (task: { id: string; content: string }) => {
+    setEditingId(task.id)
+    setEditContent(task.content.includes('<') ? htmlToPlainText(task.content) : task.content)
+  }
+
+  const cancelEditing = () => {
+    setEditingId(null)
+    setEditContent('')
+  }
+
+  const saveEdit = async (id: string) => {
+    if (!editContent.trim()) return
+    await updateTask(id, editContent)
+    setEditingId(null)
+    setEditContent('')
+  }
 
   return (
     <div className="space-y-4">
@@ -126,7 +159,31 @@ export function DailyTaskTab() {
                       {task.authorName}
                     </span>
                   </div>
-                  {task.content.includes('<') ? (
+                  {editingId === task.id ? (
+                    <div className="flex-1 space-y-2">
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono"
+                        rows={Math.max(5, editContent.split('\n').length + 1)}
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => saveEdit(task.id)}
+                          className="rounded-md bg-primary px-3 py-1 text-xs text-primary-foreground hover:bg-primary/90"
+                        >
+                          저장
+                        </button>
+                        <button
+                          onClick={cancelEditing}
+                          className="rounded-md border border-border px-3 py-1 text-xs hover:bg-muted"
+                        >
+                          취소
+                        </button>
+                      </div>
+                    </div>
+                  ) : task.content.includes('<') ? (
                     <div
                       className="flex-1 text-sm teams-content"
                       dangerouslySetInnerHTML={{ __html: task.content }}
@@ -138,6 +195,14 @@ export function DailyTaskTab() {
                     <span className="text-xs text-muted-foreground">
                       {task.source === 'TEAMS' ? 'Teams' : '수동'}
                     </span>
+                    {editingId !== task.id && (
+                      <button
+                        onClick={() => startEditing(task)}
+                        className="text-xs text-primary hover:underline"
+                      >
+                        수정
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         if (confirm('삭제하시겠습니까?')) deleteTask(task.id)
