@@ -65,7 +65,10 @@ async function getAccessToken(): Promise<string> {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        scope: ['https://www.googleapis.com/auth/analytics.readonly'],
+        scope: [
+          'https://www.googleapis.com/auth/analytics.readonly',
+          'https://www.googleapis.com/auth/cloud-platform',
+        ],
       }),
     })
     if (!impRes.ok) {
