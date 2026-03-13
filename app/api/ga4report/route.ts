@@ -6,21 +6,85 @@ const GA4_API = `https://analyticsdata.googleapis.com/v1beta/properties/${GA4_PR
 
 // GA4 인증: 아래 순서로 시도
 // 1. GCP_SA_KEY_JSON 환경변수 (서비스 계정 키 JSON)
-// 2. Application Default Credentials (gcloud auth application-default login)
+// 2. Vercel OIDC + GCP Workload Identity Federation (WIF)
+// 3. Application Default Credentials (로컬 개발용)
 async function getAccessToken(): Promise<string> {
   const keyJson = process.env.GCP_SA_KEY_JSON
 
-  const authOptions: ConstructorParameters<typeof GoogleAuth>[0] = {
+  // 1) 서비스 계정 키 JSON이 있으면 직접 사용
+  if (keyJson) {
+    const auth = new GoogleAuth({
+      credentials: JSON.parse(keyJson),
+      scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
+    })
+    const client = await auth.getClient()
+    const { token } = await client.getAccessToken()
+    if (!token) throw new Error('Failed to get access token')
+    return token
+  }
+
+  // 2) Vercel OIDC + GCP WIF (보안 정책으로 SA키 발급 불가 시)
+  const projectNumber = process.env.GCP_PROJECT_NUMBER
+  const poolId = process.env.GCP_WORKLOAD_IDENTITY_POOL_ID
+  const providerId = process.env.GCP_WORKLOAD_IDENTITY_POOL_PROVIDER_ID
+  const serviceAccountEmail = process.env.GCP_SERVICE_ACCOUNT_EMAIL
+
+  if (projectNumber && poolId && providerId && serviceAccountEmail && process.env.VERCEL) {
+    // Vercel OIDC 토큰 가져오기
+    const oidcTokenUrl = process.env.VERCEL_OIDC_TOKEN_URL
+    if (!oidcTokenUrl) throw new Error('VERCEL_OIDC_TOKEN_URL not available')
+
+    const oidcRes = await fetch(oidcTokenUrl)
+    if (!oidcRes.ok) throw new Error(`Failed to get OIDC token: ${oidcRes.status}`)
+    const oidcToken = await oidcRes.text()
+
+    // STS 토큰 교환
+    const stsUrl = 'https://sts.googleapis.com/v1/token'
+    const audience = `//iam.googleapis.com/projects/${projectNumber}/locations/global/workloadIdentityPools/${poolId}/providers/${providerId}`
+
+    const stsRes = await fetch(stsUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grant_type: 'urn:ietf:params:oauth:grant-type:token-exchange',
+        audience,
+        scope: 'https://www.googleapis.com/auth/cloud-platform',
+        requested_token_type: 'urn:ietf:params:oauth:token-type:access_token',
+        subject_token_type: 'urn:ietf:params:oauth:token-type:jwt',
+        subject_token: oidcToken,
+      }),
+    })
+    if (!stsRes.ok) {
+      const errText = await stsRes.text()
+      throw new Error(`STS token exchange failed: ${stsRes.status} ${errText.slice(0, 200)}`)
+    }
+    const stsData = await stsRes.json()
+
+    // 서비스 계정 impersonation으로 GA4 스코프 토큰 획득
+    const impersonateUrl = `https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${serviceAccountEmail}:generateAccessToken`
+    const impRes = await fetch(impersonateUrl, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${stsData.access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        scope: ['https://www.googleapis.com/auth/analytics.readonly'],
+      }),
+    })
+    if (!impRes.ok) {
+      const errText = await impRes.text()
+      throw new Error(`SA impersonation failed: ${impRes.status} ${errText.slice(0, 200)}`)
+    }
+    const impData = await impRes.json()
+    return impData.accessToken
+  }
+
+  // 3) ADC (로컬 개발: gcloud auth application-default login)
+  const auth = new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
     projectId: 'project-150ad5c5-0e90-4383-9bc',
-  }
-
-  if (keyJson) {
-    authOptions.credentials = JSON.parse(keyJson)
-  }
-  // keyJson이 없으면 ADC(Application Default Credentials)를 자동으로 사용
-
-  const auth = new GoogleAuth(authOptions)
+  })
   const client = await auth.getClient()
   const { token } = await client.getAccessToken()
   if (!token) throw new Error('Failed to get access token')
