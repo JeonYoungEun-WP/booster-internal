@@ -102,7 +102,7 @@ export async function GET(request: NextRequest) {
       const records = await rpc('object', 'execute_kw', [
         ODOO_DB, uid, ODOO_API_KEY, 'crm.lead', 'search_read',
         [domain],
-        { fields: ['create_date'], limit: 2000, order: 'create_date asc' },
+        { fields: ['create_date', 'x_studio_selection_field_8p8_1i3up6bfn'], limit: 2000, order: 'create_date asc' },
       ])
 
       return NextResponse.json({ records: records || [] })

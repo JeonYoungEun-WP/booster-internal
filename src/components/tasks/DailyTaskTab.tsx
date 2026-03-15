@@ -164,7 +164,7 @@ export function DailyTaskTab() {
                       <textarea
                         value={editContent}
                         onChange={(e) => setEditContent(e.target.value)}
-                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-mono"
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-sans"
                         rows={Math.max(5, editContent.split('\n').length + 1)}
                         autoFocus
                       />
