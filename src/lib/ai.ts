@@ -1,3 +1,98 @@
+export interface TrafficAnalysisInput {
+  currentWeek: {
+    label: string
+    uvs: number
+    pvs: number
+    paidUvs: number
+    organicUvs: number
+    channels: Record<string, number>
+  }
+  prevWeek: {
+    label: string
+    uvs: number
+    pvs: number
+    paidUvs: number
+    organicUvs: number
+    channels: Record<string, number>
+  }
+  currentLeads: { total: number; paid: number; organic: number }
+  prevLeads: { total: number; paid: number; organic: number }
+  yoyUvs: number | null
+  conversionRate: number
+  prevConversionRate: number
+  isIncomplete: boolean
+}
+
+export async function generateTrafficAnalysis(data: TrafficAnalysisInput): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) return ''
+
+  try {
+    const wow = (cur: number, prev: number) => {
+      if (prev === 0) return cur > 0 ? '+∞' : '0%'
+      return `${(((cur - prev) / prev) * 100).toFixed(1)}%`
+    }
+
+    const channelLines = Object.entries(data.currentWeek.channels)
+      .sort(([, a], [, b]) => b - a)
+      .map(([ch, uv]) => {
+        const prev = data.prevWeek.channels[ch] || 0
+        return `  ${ch}: ${uv} (전주 ${prev}, WoW ${wow(uv, prev)})`
+      })
+      .join('\n')
+
+    const prompt = `위픽부스터(B2B 마케팅 SaaS) 주간 트래픽 데이터를 분석해주세요.
+
+■ 이번 주 (${data.currentWeek.label})${data.isIncomplete ? ' [진행 중 - 불완전 데이터]' : ''}
+- UV: ${data.currentWeek.uvs} (Paid ${data.currentWeek.paidUvs} / Organic ${data.currentWeek.organicUvs})
+- PV: ${data.currentWeek.pvs}
+- 리드: ${data.currentLeads.total}건 (Paid ${data.currentLeads.paid} / Organic ${data.currentLeads.organic})
+- 전환율: ${data.conversionRate}%
+
+■ 전주 (${data.prevWeek.label})
+- UV: ${data.prevWeek.uvs} (Paid ${data.prevWeek.paidUvs} / Organic ${data.prevWeek.organicUvs})
+- PV: ${data.prevWeek.pvs}
+- 리드: ${data.prevLeads.total}건 (Paid ${data.prevLeads.paid} / Organic ${data.prevLeads.organic})
+- 전환율: ${data.prevConversionRate}%
+
+■ WoW 변화
+- UV: ${wow(data.currentWeek.uvs, data.prevWeek.uvs)}
+- PV: ${wow(data.currentWeek.pvs, data.prevWeek.pvs)}
+- 리드: ${wow(data.currentLeads.total, data.prevLeads.total)}
+${data.yoyUvs !== null ? `\n■ YoY 전년 동주차 UV: ${data.yoyUvs}` : ''}
+
+■ 채널별 UV
+${channelLines}
+
+규칙:
+1. 5~8개 핵심 인사이트를 bullet point(• )로 작성
+2. 각 포인트는 구체적 수치를 포함하고 액션 아이템 제시
+3. B2B 서비스이므로 주말 트래픽 저조는 언급하지 마세요
+4. 채널별 유입 변화에서 주목할 점을 반드시 포함
+5. Paid vs Organic 비율 변화와 효율성 분석 포함
+6. 전환율 변화 원인 추정 포함
+7. 한국어로 작성, 마크다운 없이 텍스트만`
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      },
+    )
+
+    if (!res.ok) return ''
+    const result = await res.json()
+    return result.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  } catch (err) {
+    console.error('Traffic analysis error:', err)
+    return ''
+  }
+}
+
 interface Project {
   id: string
   title: string
