@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { useWeeklyReports } from '@/src/hooks/useWeeklyReports'
 
 const TEAM_MEMBERS = [
@@ -42,13 +42,30 @@ function formatDate(dateStr: string) {
   return dateStr.slice(0, 10).replace(/-/g, '/')
 }
 
+function getKSTNow() {
+  // KST = UTC+9
+  return new Date(Date.now() + 9 * 60 * 60 * 1000)
+}
+
 function getThisMonday() {
-  const now = new Date()
-  const day = now.getDay()
+  const kst = getKSTNow()
+  const day = kst.getUTCDay()
   const diff = day === 0 ? -6 : 1 - day
-  const monday = new Date(now)
-  monday.setDate(now.getDate() + diff)
+  const monday = new Date(kst)
+  monday.setUTCDate(kst.getUTCDate() + diff)
   return monday.toISOString().slice(0, 10)
+}
+
+function getNextMonday() {
+  const base = new Date(getThisMonday())
+  base.setDate(base.getDate() + 7)
+  return base.toISOString().slice(0, 10)
+}
+
+// 금요일 00:00 KST 이후(금/토/일)면 다음 주 모드
+function isAfterFridayKST() {
+  const day = getKSTNow().getUTCDay()
+  return day === 5 || day === 6 || day === 0
 }
 
 export function WeeklyReportTab() {
@@ -59,6 +76,9 @@ export function WeeklyReportTab() {
   const [planEmail, setPlanEmail] = useState(TEAM_MEMBERS[1].email)
   const [planText, setPlanText] = useState('')
   const [generating, setGenerating] = useState(false)
+  const [targetWeek, setTargetWeek] = useState<'this' | 'next'>(() =>
+    isAfterFridayKST() ? 'next' : 'this'
+  )
 
   const { reports, loading, error, savePlan, generateSummary } = useWeeklyReports(
     filterEmail || undefined,
@@ -75,8 +95,17 @@ export function WeeklyReportTab() {
     return Object.entries(groups).sort((a, b) => b[0].localeCompare(a[0]))
   }, [reports])
 
-  // 페이지네이션 (1페이지 = 1주)
+  // 페이지네이션 (1페이지 = 1주) — 금요일 KST 이후면 다음 주 기본
   const [weekPage, setWeekPage] = useState(0)
+  const activeMonday = isAfterFridayKST() ? getNextMonday() : getThisMonday()
+
+  // 데이터 로드 후 activeMonday에 해당하는 주차로 자동 이동
+  useEffect(() => {
+    if (weekGroups.length === 0) return
+    const idx = weekGroups.findIndex(([w]) => w === activeMonday)
+    setWeekPage(idx >= 0 ? idx : 0)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [weekGroups.length])
   const totalWeekPages = weekGroups.length
   const currentWeek = weekGroups[weekPage]
 
@@ -93,7 +122,7 @@ export function WeeklyReportTab() {
 
   const handleSavePlan = async () => {
     if (!planText.trim()) return
-    const weekStart = getThisMonday()
+    const weekStart = targetWeek === 'next' ? getNextMonday() : getThisMonday()
     await savePlan(weekStart, planEmail, planText.trim())
     setPlanText('')
     setShowPlanForm(false)
@@ -119,10 +148,10 @@ export function WeeklyReportTab() {
           ))}
         </select>
         <button
-          onClick={() => setShowPlanForm(!showPlanForm)}
+          onClick={() => { setTargetWeek(isAfterFridayKST() ? 'next' : 'this'); setShowPlanForm(!showPlanForm) }}
           className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
         >
-          + 이번 주 계획 입력
+          + {isAfterFridayKST() ? '다음 주' : '이번 주'} 계획 입력
         </button>
         <button
           onClick={handleGenerate}
@@ -136,7 +165,7 @@ export function WeeklyReportTab() {
       {/* 계획 입력 폼 */}
       {showPlanForm && (
         <div className="rounded-xl border border-border bg-card p-4 shadow-sm space-y-3">
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3 items-center">
             <select
               value={planEmail}
               onChange={(e) => setPlanEmail(e.target.value)}
@@ -146,9 +175,20 @@ export function WeeklyReportTab() {
                 <option key={m.email} value={m.email}>{m.name}</option>
               ))}
             </select>
-            <span className="text-sm text-muted-foreground leading-8">
-              이번주 ({getThisMonday()})
-            </span>
+            <div className="flex rounded-lg border border-border overflow-hidden text-sm">
+              <button
+                onClick={() => setTargetWeek('this')}
+                className={`px-3 py-1.5 ${targetWeek === 'this' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted/50'}`}
+              >
+                이번 주 ({getThisMonday()})
+              </button>
+              <button
+                onClick={() => setTargetWeek('next')}
+                className={`px-3 py-1.5 border-l border-border ${targetWeek === 'next' ? 'bg-primary text-primary-foreground' : 'hover:bg-muted/50'}`}
+              >
+                다음 주 ({getNextMonday()})
+              </button>
+            </div>
           </div>
           <textarea
             value={planText}
