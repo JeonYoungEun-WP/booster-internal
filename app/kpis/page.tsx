@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { GA4YesterdayBanner } from '@/src/components/kpis/GA4YesterdayBanner';
+import { SuspiciousTrafficBanner } from '@/src/components/kpis/SuspiciousTrafficBanner';
 import { GA4SessionSourceTable } from '@/src/components/kpis/GA4SessionSourceTable';
 import { LeadMagnetFunnelTab } from '@/src/components/kpis/LeadMagnetFunnelTab';
 
@@ -20,6 +21,7 @@ export default function KPIsPage() {
         </div>
         <section className="space-y-4">
           <GA4YesterdayBanner />
+          <SuspiciousTrafficBanner />
           <GA4SessionSourceTable />
         </section>
         <LeadMagnetFunnelTab />
