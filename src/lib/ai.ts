@@ -165,48 +165,66 @@ export async function generateWeeklySummary(
   }
 
   try {
+    // HTML 엔티티, 체크박스, 특수문자 정리
+    const cleanContent = (s: string) =>
+      s.replace(/&nbsp;/g, ' ')
+        .replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+        .replace(/&amp;/g, '&').replace(/&#\d+;/g, '')
+        .replace(/<[^>]+>/g, '')
+        .replace(/\[x\]\s*/gi, '').replace(/\[ \]\s*/gi, '')
+        .replace(/\*+/g, '').replace(/ㄴ/g, '- ')
+        .replace(/✔/g, '').replace(/⇒/g, '')
+        .replace(/\n{2,}/g, '\n').trim()
+
     const entries = dailyEntries
-      .map((e) => `- ${e.date}: ${e.content}`)
+      .map((e) => {
+        const cleaned = cleanContent(e.content)
+        // 각 날짜별 최대 300자로 제한
+        return `[${e.date}] ${cleaned.slice(0, 300)}`
+      })
       .join('\n')
 
-    const prompt = `${memberName}의 ${startDate}~${endDate} 주간 업무:
+    const prompt = `아래는 ${memberName}의 주간 업무 로그다. 3~5줄로 요약해라.
+
 ${entries}
 
-[필수 규칙 - 반드시 지켜라]
-• 반드시 3~5줄 이내. 절대 6줄 초과 금지.
-• 한 줄은 20자 이내로 핵심만.
-• 같은 프로젝트/업무는 무조건 한 줄로 병합 (예: "OO 기획→제작→완료")
-• 루틴(리드확인, 성과입력, 스크럼, 일일보고 등)은 전부 "루틴 업무" 한 줄로 통합
-• 회의는 "OO 미팅(결론: XX)" 형태로 한 줄
-• "• "로 시작, 마크다운/볼드/날짜 금지
-• 날짜별 나누지 말고 주제별로 묶어라`
+[출력 규칙]
+- 반드시 3~5줄. 각 줄은 "• "로 시작
+- 같은 프로젝트는 한 줄로 병합 (예: "AX 프로젝트: 결제→주문→마이페이지 개발")
+- 루틴(리드입력, 성과확인, 스크럼 등)은 전부 "루틴 업무" 한 줄
+- 회의는 "주요 미팅 N건" 한 줄로 통합
+- 날짜 쓰지 마. 마크다운 금지. 설명 금지. 나열만 해`
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            maxOutputTokens: 256,
+            temperature: 0.1,
+          },
         }),
       },
     )
 
     if (!res.ok) {
       const errText = await res.text()
-      console.error('Gemini API error:', res.status, errText.slice(0, 300))
-      return dailyEntries.map((e) => `[${e.date}] ${e.content}`).join('\n')
+      console.error('Gemini API error:', res.status, errText.slice(0, 500))
+      return `[AI 요약 실패: ${res.status}] 수동 확인 필요`
     }
 
     const data = await res.json()
     const result = data.candidates?.[0]?.content?.parts?.[0]?.text
     if (!result) {
-      console.error('Gemini empty response:', JSON.stringify(data).slice(0, 300))
-      return '요약 생성 실패'
+      console.error('Gemini empty response:', JSON.stringify(data).slice(0, 500))
+      return '[AI 요약 실패] 빈 응답'
     }
     return result
   } catch (err) {
     console.error('Gemini summary error:', err)
-    return dailyEntries.map((e) => `[${e.date}] ${e.content}`).join('\n')
+    return `[AI 요약 실패] ${(err as Error).message}`
   }
 }
