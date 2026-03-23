@@ -169,19 +169,17 @@ export async function generateWeeklySummary(
       .map((e) => `- ${e.date}: ${e.content}`)
       .join('\n')
 
-    const prompt = `다음은 ${memberName}의 ${startDate} ~ ${endDate} 주간 업무 내역입니다:
+    const prompt = `${memberName}의 ${startDate}~${endDate} 주간 업무:
 ${entries}
 
-위 내용을 바탕으로 주간 업무 요약을 작성해주세요.
-
-규칙:
-1. 중복 제거: 여러 날에 걸쳐 동일하거나 유사한 업무가 반복되면 반드시 하나로 합쳐서 진행 경과만 요약 (예: "AX 스프린트: 통합본 수정 → 리뷰 → 반영 완료")
-2. 루틴 통합: 매일 반복되는 루틴(리드수 확인, 성과 입력, 스크럼 등)은 모두 "루틴 업무 수행" 한 줄로 통합
-3. 회의/미팅은 결론이나 의사결정 사항만 한 줄로
-4. 회고는 핵심 인사이트 한 줄로 축약
-5. 총 3~6줄로 최대한 컴팩트하게
-6. 마크다운 없이 텍스트로만, 각 항목은 "• " 로 시작
-7. 날짜별로 나누지 말고 주제/프로젝트별로 묶어서 정리`
+[필수 규칙 - 반드시 지켜라]
+• 반드시 3~5줄 이내. 절대 6줄 초과 금지.
+• 한 줄은 20자 이내로 핵심만.
+• 같은 프로젝트/업무는 무조건 한 줄로 병합 (예: "OO 기획→제작→완료")
+• 루틴(리드확인, 성과입력, 스크럼, 일일보고 등)은 전부 "루틴 업무" 한 줄로 통합
+• 회의는 "OO 미팅(결론: XX)" 형태로 한 줄
+• "• "로 시작, 마크다운/볼드/날짜 금지
+• 날짜별 나누지 말고 주제별로 묶어라`
 
     const res = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
