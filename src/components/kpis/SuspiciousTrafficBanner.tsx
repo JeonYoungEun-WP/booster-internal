@@ -49,7 +49,6 @@ export function SuspiciousTrafficBanner() {
     data.foreignCountries.length +
     data.probingPaths.length +
     data.botSources.length +
-    (data.nightTraffic ? 1 : 0) +
     data.massPages.length +
     data.suspiciousBrowsers.length +
     data.notsetSources.length
@@ -130,7 +129,7 @@ export function SuspiciousTrafficBanner() {
           <div className="rounded bg-indigo-100/60 px-2 py-1.5 text-xs text-indigo-800">
             새벽 {data.nightTraffic.nightUsers}명 / 전체 {data.nightTraffic.totalUsers}명
             = <span className="font-bold">{(data.nightTraffic.ratio * 100).toFixed(0)}%</span>
-            <span className="ml-1 text-indigo-600">(B2B 특성상 새벽 유입은 봇 가능성 높음)</span>
+            <span className="ml-1 text-indigo-600">(참고 지표 — 단독으로 봇 판정하지 않음)</span>
           </div>
         </Section>
       )}

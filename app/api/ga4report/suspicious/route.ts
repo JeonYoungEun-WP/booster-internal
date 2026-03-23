@@ -196,11 +196,11 @@ export async function GET(request: Request) {
       date = y.toISOString().slice(0, 10)
     }
 
+    // nightTraffic은 참고 지표로만 표시 (단독으로 hasSuspicious 트리거하지 않음)
     const hasSuspicious =
       foreignCountries.length > 0 ||
       probingPaths.length > 0 ||
       botSources.length > 0 ||
-      nightTraffic !== null ||
       massPages.length > 0 ||
       suspiciousBrowsers.length > 0 ||
       notsetSources.length > 0
