@@ -75,6 +75,11 @@ export async function POST(request: NextRequest) {
         content: t.content.replace(/<[^>]+>/g, '').trim(),
       }))
 
+      // rate limit 방지: 팀원 사이 3초 대기
+      if (results.length > 0) {
+        await new Promise((r) => setTimeout(r, 3000))
+      }
+
       const summary = await generateWeeklySummary(
         member.name,
         prevMondayStr,
