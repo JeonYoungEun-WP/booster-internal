@@ -195,25 +195,34 @@ ${entries}
 - 회의는 "주요 미팅 N건" 한 줄로 통합
 - 날짜 쓰지 마. 마크다운 금지. 설명 금지. 나열만 해`
 
-    const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }],
-          generationConfig: {
-            maxOutputTokens: 256,
-            temperature: 0.1,
-          },
-        }),
-      },
-    )
+    // 429 재시도 (최대 3회, 지수 백오프)
+    let res: Response | null = null
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (attempt > 0) {
+        await new Promise((r) => setTimeout(r, (attempt + 1) * 5000))
+      }
+      res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+            generationConfig: {
+              maxOutputTokens: 256,
+              temperature: 0.1,
+            },
+          }),
+        },
+      )
+      if (res.status !== 429) break
+      console.warn(`Gemini 429, retry ${attempt + 1}/3...`)
+    }
 
-    if (!res.ok) {
-      const errText = await res.text()
-      console.error('Gemini API error:', res.status, errText.slice(0, 500))
-      return `[AI 요약 실패: ${res.status}] 수동 확인 필요`
+    if (!res || !res.ok) {
+      const errText = res ? await res.text() : 'no response'
+      console.error('Gemini API error:', res?.status, errText.slice(0, 500))
+      return `[AI 요약 실패: ${res?.status}] 수동 확인 필요`
     }
 
     const data = await res.json()
