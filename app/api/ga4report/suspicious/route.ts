@@ -22,15 +22,20 @@ type RowType = {
   metricValues?: { value: string }[]
 }
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const propertyId = process.env.GA4_PROPERTY_ID
     if (!propertyId) {
       return NextResponse.json({ error: 'GA4_PROPERTY_ID not configured' }, { status: 503 })
     }
 
+    const { searchParams } = new URL(request.url)
+    const dateParam = searchParams.get('date')
+    const startDate = dateParam || 'yesterday'
+    const endDate = dateParam || 'yesterday'
+
     const accessToken = await getAccessToken()
-    const dateRange = { startDate: 'yesterday', endDate: 'yesterday' }
+    const dateRange = { startDate, endDate }
 
     const [
       countryReport, pathReport, sourceReport,
@@ -181,10 +186,15 @@ export async function GET() {
           (r.source === '(not set)' || r.source === '') && r.users >= NOTSET_SOURCE_MIN,
       )
 
-    // 어제 날짜
-    const y = new Date()
-    y.setDate(y.getDate() - 1)
-    const date = y.toISOString().slice(0, 10)
+    // 조회 날짜
+    let date: string
+    if (dateParam) {
+      date = dateParam
+    } else {
+      const y = new Date()
+      y.setDate(y.getDate() - 1)
+      date = y.toISOString().slice(0, 10)
+    }
 
     const hasSuspicious =
       foreignCountries.length > 0 ||
