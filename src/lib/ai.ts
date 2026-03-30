@@ -184,16 +184,17 @@ export async function generateWeeklySummary(
       })
       .join('\n')
 
-    const prompt = `아래는 ${memberName}의 주간 업무 로그다. 3~5줄로 요약해라.
+    const prompt = `아래는 ${memberName}의 ${startDate}~${endDate} 주간 업무 로그다.
+이 요약은 "지난 주 계획"과 비교하여 완료 여부를 확인하는 용도로 쓰인다.
 
 ${entries}
 
 [출력 규칙]
-- 반드시 3~5줄. 각 줄은 "• "로 시작
-- 같은 프로젝트는 한 줄로 병합 (예: "AX 프로젝트: 결제→주문→마이페이지 개발")
-- 루틴(리드입력, 성과확인, 스크럼 등)은 전부 "루틴 업무" 한 줄
-- 회의는 "주요 미팅 N건" 한 줄로 통합
-- 날짜 쓰지 마. 마크다운 금지. 설명 금지. 나열만 해`
+- 각 줄은 "• "로 시작. 5~10줄 허용
+- 프로젝트/업무 단위로 한 줄씩 나열하되, 구체적인 작업 내용을 포함 (예: "AX 프로젝트: 결제 기능 개발, 주문 페이지 수정, 프론트 디자인 반영")
+- 회의는 구체적 회의명을 나열 (예: "dev 회의, 스프린트 회의, 플랫폼팀 주간회의")
+- 루틴 업무(리드확인, 성과입력 등)도 한 줄로 나열
+- 날짜 쓰지 마. 마크다운 금지. 설명/평가 금지. 사실만 나열`
 
     // 429 재시도 (최대 3회, 지수 백오프)
     let res: Response | null = null
@@ -209,7 +210,7 @@ ${entries}
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
-              maxOutputTokens: 256,
+              maxOutputTokens: 512,
               temperature: 0.1,
             },
           }),
