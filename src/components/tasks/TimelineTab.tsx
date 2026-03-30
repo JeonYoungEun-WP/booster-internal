@@ -24,7 +24,7 @@ const STATUS_LABELS: Record<string, string> = {
   ON_HOLD: '보류',
 }
 
-const MEMBERS = ['전영은', '권상현', '이유림', '이정하', '이정주', '조희연']
+const MEMBERS = ['전영은', '권상현', '이유림', '이정하', '이정주', '조희연', '서청원']
 const MEMBER_COLORS: Record<string, string> = {
   '전영은': '#3b82f6',
   '권상현': '#22c55e',
@@ -32,6 +32,7 @@ const MEMBER_COLORS: Record<string, string> = {
   '이정하': '#f97316',
   '이정주': '#ec4899',
   '조희연': '#14b8a6',
+  '서청원': '#eab308',
 }
 
 function extractAXItems(content: string): string[] {

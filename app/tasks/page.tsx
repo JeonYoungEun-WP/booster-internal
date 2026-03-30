@@ -14,7 +14,7 @@ const TABS = [
 type TabId = (typeof TABS)[number]['id']
 
 export default function TasksPage() {
-  const [activeTab, setActiveTab] = useState<TabId>('daily')
+  const [activeTab, setActiveTab] = useState<TabId>('weekly')
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-6">

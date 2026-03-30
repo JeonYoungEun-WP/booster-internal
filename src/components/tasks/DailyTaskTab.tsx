@@ -12,6 +12,7 @@ const TEAM_MEMBERS = [
   { name: '이정하', email: 'jungha@wepick.kr' },
   { name: '이정주', email: 'jeongju@wepick.kr' },
   { name: '조희연', email: 'heeyeon@wepick.kr' },
+  { name: '서청원', email: 'cheongwon@wepick.kr' },
 ]
 
 function getKSTDate(offset = 0) {
