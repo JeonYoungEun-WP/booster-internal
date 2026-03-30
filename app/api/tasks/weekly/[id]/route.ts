@@ -8,11 +8,18 @@ export async function PUT(
   try {
     const { id } = await params
     const body = await request.json()
-    const { weeklyPlan } = body
+    const { weeklyPlan, weeklySummary } = body
+
+    const data: Record<string, unknown> = {}
+    if (weeklyPlan !== undefined) data.weeklyPlan = weeklyPlan
+    if (weeklySummary !== undefined) {
+      data.weeklySummary = weeklySummary
+      data.summaryGeneratedAt = new Date()
+    }
 
     const report = await prisma.weeklyReport.update({
       where: { id },
-      data: { weeklyPlan },
+      data,
     })
 
     return NextResponse.json({ ok: true, report })
