@@ -69,6 +69,32 @@ function isAfterFridayKST() {
   return day === 5 || day === 6 || day === 0
 }
 
+// 계획 항목이 결과에 포함되었는지 키워드 매칭으로 판단
+function checkPlanCompletion(planText: string, summaryText: string | null): { line: string; done: boolean }[] {
+  if (!planText) return []
+  const summary = (summaryText || '').toLowerCase()
+  const lines = planText.split('\n').filter(l => l.trim())
+
+  return lines.map(line => {
+    const cleaned = line.replace(/^[-•*ㄴ\s]+/, '').trim()
+    if (!cleaned || cleaned.length < 3) return { line, done: true } // 너무 짧은 줄은 무시
+
+    // 핵심 키워드 추출 (2글자 이상 단어)
+    const keywords = cleaned
+      .replace(/[()[\]~→·:,./]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 2)
+      .slice(0, 5) // 상위 5개 키워드만
+
+    if (keywords.length === 0) return { line, done: true }
+
+    // 키워드 중 절반 이상이 결과에 포함되면 완료로 판정
+    const matchCount = keywords.filter(kw => summary.includes(kw.toLowerCase())).length
+    const done = matchCount >= Math.max(1, Math.ceil(keywords.length * 0.4))
+    return { line, done }
+  })
+}
+
 export function WeeklyReportTab() {
   const [filterEmail, setFilterEmail] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -313,14 +339,28 @@ export function WeeklyReportTab() {
                     </div>
                   </td>
                   {currentWeek[1].map((r) => {
-                    // 이전 주 데이터에서 같은 팀원의 weeklyPlan 가져오기
+                    // 이전 주 데이터에서 같은 팀원의 weeklyPlan과 weeklySummary 가져오기
                     const prevWeekGroup = weekGroups[weekPage + 1]
-                    const prevPlan = prevWeekGroup
-                      ? prevWeekGroup[1].find((pr) => pr.authorEmail === r.authorEmail)?.weeklyPlan
+                    const prevReport = prevWeekGroup
+                      ? prevWeekGroup[1].find((pr) => pr.authorEmail === r.authorEmail)
                       : null
+                    const prevPlan = prevReport?.weeklyPlan || null
+                    const prevSummary = r.weeklySummary || null
+                    const planCheck = prevPlan ? checkPlanCompletion(prevPlan, prevSummary) : []
                     return (
-                      <td key={`prev-plan-${r.id}`} className="px-3 py-2 whitespace-pre-wrap text-sm">
-                        {prevPlan || (
+                      <td key={`prev-plan-${r.id}`} className="px-3 py-2 text-sm">
+                        {planCheck.length > 0 ? (
+                          <div className="space-y-0.5">
+                            {planCheck.map((item, i) => (
+                              <div key={i} className="flex items-start gap-1">
+                                <span className="whitespace-pre-wrap flex-1">{item.line}</span>
+                                {!item.done && (
+                                  <span className="shrink-0 text-red-500 font-bold text-xs mt-0.5">X</span>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
                           <span className="text-muted-foreground italic">계획 없음</span>
                         )}
                       </td>
