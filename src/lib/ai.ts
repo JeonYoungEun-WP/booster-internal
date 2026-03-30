@@ -210,8 +210,9 @@ ${entries}
           body: JSON.stringify({
             contents: [{ parts: [{ text: prompt }] }],
             generationConfig: {
-              maxOutputTokens: 512,
+              maxOutputTokens: 1024,
               temperature: 0.1,
+              thinkingConfig: { thinkingBudget: 0 },
             },
           }),
         },
