@@ -68,10 +68,20 @@ async function createOdooArticle(title: string, htmlBody: string, parentId: numb
 
 // ─── GA4 weekly data ──────────────────────────────────────────────────────────
 
+// ISO 8601: 해당 주의 목요일이 속한 월 기준
 function getWeekLabel(date: Date): string {
-  const month = date.getMonth() + 1
-  const dayOfMonth = date.getDate()
-  const week = Math.ceil(dayOfMonth / 7)
+  const d = new Date(date)
+  const day = d.getDay()
+  const diffToMon = day === 0 ? -6 : 1 - day
+  const thursday = new Date(d)
+  thursday.setDate(d.getDate() + diffToMon + 3)
+  const month = thursday.getMonth() + 1
+  const firstOfMonth = new Date(thursday.getFullYear(), thursday.getMonth(), 1)
+  const thuDow = firstOfMonth.getDay()
+  const offset = thuDow <= 4 ? 4 - thuDow : 11 - thuDow
+  const firstThursday = new Date(firstOfMonth)
+  firstThursday.setDate(firstOfMonth.getDate() + offset)
+  const week = Math.floor((thursday.getTime() - firstThursday.getTime()) / (7 * 86400000)) + 1
   return `${month}-${week}W`
 }
 

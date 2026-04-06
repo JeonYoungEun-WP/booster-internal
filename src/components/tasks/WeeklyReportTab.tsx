@@ -14,18 +14,25 @@ const TEAM_MEMBERS = [
   { name: '서청원', email: 'cheongwon@wepick.kr' },
 ]
 
+// ISO 8601 기준: 해당 주의 목요일이 속한 월이 기준, 그 월의 첫 번째 목요일이 1주차
 function getWeekOfMonth(dateStr: string) {
   const d = new Date(dateStr)
-  const month = d.getMonth() + 1
-  // 해당 월의 첫 번째 월요일 찾기
-  const firstOfMonth = new Date(d.getFullYear(), d.getMonth(), 1)
-  const firstMonday = new Date(firstOfMonth)
-  const dow = firstOfMonth.getDay()
-  if (dow === 0) firstMonday.setDate(firstOfMonth.getDate() + 1)
-  else if (dow > 1) firstMonday.setDate(firstOfMonth.getDate() + (8 - dow))
-  // 현재 날짜가 첫 월요일 이전이면 1주차
-  const diffDays = Math.floor((d.getTime() - firstMonday.getTime()) / (1000 * 60 * 60 * 24))
-  const week = diffDays < 0 ? 1 : Math.floor(diffDays / 7) + 1
+  // 해당 주의 목요일 구하기 (월요일 기준 weekStart + 3)
+  const day = d.getDay()
+  const diffToMon = day === 0 ? -6 : 1 - day
+  const thursday = new Date(d)
+  thursday.setDate(d.getDate() + diffToMon + 3)
+
+  const month = thursday.getMonth() + 1
+  // 목요일이 속한 달의 첫 번째 목요일 찾기
+  const firstOfThuMonth = new Date(thursday.getFullYear(), thursday.getMonth(), 1)
+  let firstThursday = new Date(firstOfThuMonth)
+  const thuDow = firstOfThuMonth.getDay()
+  // 목요일(4)까지의 오프셋
+  const offset = thuDow <= 4 ? 4 - thuDow : 11 - thuDow
+  firstThursday.setDate(firstOfThuMonth.getDate() + offset)
+
+  const week = Math.floor((thursday.getTime() - firstThursday.getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1
   return { month, week }
 }
 

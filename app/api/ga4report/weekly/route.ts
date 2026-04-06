@@ -2,11 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAccessToken, runGA4Report } from '@/src/lib/ga4-server'
 
 // 월-주차 라벨 생성: 해당 월 내 몇 번째 주인지 (월요일 기준)
+// ISO 8601: 해당 주의 목요일이 속한 월 기준
 function getWeekLabel(date: Date): string {
-  const month = date.getMonth() + 1
-  // 해당 월 1일부터 date까지 경과 일수로 주차 계산
-  const dayOfMonth = date.getDate()
-  const week = Math.ceil(dayOfMonth / 7)
+  const d = new Date(date)
+  const day = d.getDay()
+  const diffToMon = day === 0 ? -6 : 1 - day
+  const thursday = new Date(d)
+  thursday.setDate(d.getDate() + diffToMon + 3)
+  const month = thursday.getMonth() + 1
+  const firstOfMonth = new Date(thursday.getFullYear(), thursday.getMonth(), 1)
+  const thuDow = firstOfMonth.getDay()
+  const offset = thuDow <= 4 ? 4 - thuDow : 11 - thuDow
+  const firstThursday = new Date(firstOfMonth)
+  firstThursday.setDate(firstOfMonth.getDate() + offset)
+  const week = Math.floor((thursday.getTime() - firstThursday.getTime()) / (7 * 86400000)) + 1
   return `${month}-${week}W`
 }
 
