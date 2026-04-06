@@ -134,7 +134,28 @@ export function WeeklyReportTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weekGroups.length])
   const totalWeekPages = weekGroups.length
-  const currentWeek = weekGroups[weekPage]
+  const currentWeekRaw = weekGroups[weekPage]
+
+  // 현재 주에 레코드가 없는 팀원도 포함 (필터 적용 시 제외)
+  const currentWeek = useMemo(() => {
+    if (!currentWeekRaw) return null
+    const [weekKey, existingReports] = currentWeekRaw
+    const allMembers = TEAM_MEMBERS.filter(m => m.email)
+      .filter(m => !filterEmail || m.email === filterEmail)
+    const merged = allMembers.map(m => {
+      const existing = existingReports.find(r => r.authorEmail === m.email)
+      return existing || {
+        id: `placeholder-${m.email}-${weekKey}`,
+        weekStart: weekKey,
+        authorEmail: m.email,
+        authorName: m.name,
+        weeklyPlan: null,
+        weeklySummary: null,
+        summaryGeneratedAt: null,
+      }
+    })
+    return [weekKey, merged] as [string, typeof reports]
+  }, [currentWeekRaw, filterEmail])
 
   const handleGenerate = async () => {
     setGenerating(true)
@@ -294,6 +315,7 @@ export function WeeklyReportTab() {
                   </td>
                   {currentWeek[1].map((r) => {
                     const weekStartDate = r.weekStart.slice(0, 10)
+                    const isPlaceholder = r.id.startsWith('placeholder-')
                     return (
                       <td key={r.id} className="px-3 py-2">
                         {editingId === r.id ? (
@@ -312,7 +334,12 @@ export function WeeklyReportTab() {
                         ) : (
                           <div
                             className="cursor-pointer whitespace-pre-wrap hover:bg-muted/50 rounded p-1 -m-1 text-sm"
-                            onClick={() => {
+                            onClick={async () => {
+                              if (isPlaceholder) {
+                                // placeholder면 먼저 DB에 레코드 생성
+                                await savePlan(weekStartDate, r.authorEmail, '')
+                                return // savePlan이 fetchReports를 호출하므로 리렌더링됨
+                              }
                               setEditingId(r.id)
                               setEditText(r.weeklyPlan || '')
                             }}
