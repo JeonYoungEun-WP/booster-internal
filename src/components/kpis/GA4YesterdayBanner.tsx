@@ -170,7 +170,7 @@ function StatsRow({
             <Users className="h-5 w-5 text-blue-500" />
           </div>
           <div>
-            <p className="text-xs text-muted-foreground">방문자</p>
+            <p className="text-xs text-muted-foreground">방문자 (totalUsers, 총사용자)</p>
             <p className="text-xl font-bold text-foreground">
               {loading ? (
                 <span className="text-muted-foreground animate-pulse">···</span>
