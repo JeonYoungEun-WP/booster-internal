@@ -48,11 +48,11 @@ export function useWeeklyReports(authorEmail?: string) {
     await fetchReports()
   }, [fetchReports])
 
-  const generateSummary = useCallback(async () => {
+  const generateSummary = useCallback(async (weekStart?: string) => {
     const res = await fetch('/api/tasks/weekly/generate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({}),
+      body: JSON.stringify(weekStart ? { weekStart } : {}),
     })
     if (!res.ok) throw new Error('생성 실패')
     await fetchReports()

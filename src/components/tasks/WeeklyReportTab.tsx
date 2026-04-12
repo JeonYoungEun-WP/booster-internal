@@ -167,9 +167,11 @@ export function WeeklyReportTab() {
   const handleGenerate = async () => {
     setGenerating(true)
     try {
-      await generateSummary()
+      // 현재 보고 있는 주차 기준으로 요약 생성
+      const viewingWeek = currentWeek ? currentWeek[0] : undefined
+      await generateSummary(viewingWeek)
     } catch (err) {
-      alert('AI 요약 생성 실패: ' + (err as Error).message)
+      alert('주간 요약 생성 실패: ' + (err as Error).message)
     } finally {
       setGenerating(false)
     }
