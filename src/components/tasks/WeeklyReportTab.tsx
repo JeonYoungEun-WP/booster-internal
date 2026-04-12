@@ -416,9 +416,15 @@ export function WeeklyReportTab() {
                     </div>
                   </td>
                   {currentWeek[1].map((r) => (
-                    <td key={`summary-${r.id}`} className="px-3 py-2 whitespace-pre-wrap text-sm">
-                      {r.weeklySummary || (
-                        <span className="text-muted-foreground italic">AI 요약 대기중</span>
+                    <td key={`summary-${r.id}`} className="px-3 py-2 text-sm">
+                      {r.weeklySummary ? (
+                        <ul className="list-disc list-inside space-y-1">
+                          {r.weeklySummary.split('\n').filter((l: string) => l.trim()).map((line: string, i: number) => (
+                            <li key={i}>{line.replace(/^[•\-\*]\s*/, '')}</li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <span className="text-muted-foreground italic">요약 대기중</span>
                       )}
                     </td>
                   ))}
