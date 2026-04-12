@@ -154,16 +154,11 @@ ${projectList}
 }
 
 export async function generateWeeklySummary(
-  memberName: string,
-  startDate: string,
-  endDate: string,
+  _memberName: string,
+  _startDate: string,
+  _endDate: string,
   dailyEntries: { date: string; content: string }[],
 ): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) {
-    return dailyEntries.map((e) => `[${e.date}] ${e.content}`).join('\n')
-  }
-
   try {
     // HTML 엔티티, 체크박스, 특수문자 정리
     const cleanContent = (s: string) =>
@@ -172,70 +167,121 @@ export async function generateWeeklySummary(
         .replace(/&amp;/g, '&').replace(/&#\d+;/g, '')
         .replace(/<[^>]+>/g, '')
         .replace(/\[x\]\s*/gi, '').replace(/\[ \]\s*/gi, '')
-        .replace(/\*+/g, '').replace(/ㄴ/g, '- ')
-        .replace(/✔/g, '').replace(/⇒/g, '')
+        .replace(/\*+/g, '').replace(/ㄴ/g, '')
+        .replace(/✔/g, '').replace(/⇒/g, '→')
         .replace(/\n{2,}/g, '\n').trim()
 
-    const entries = dailyEntries
-      .map((e) => {
-        const cleaned = cleanContent(e.content)
-        // 각 날짜별 최대 300자로 제한
-        return `[${e.date}] ${cleaned.slice(0, 300)}`
-      })
-      .join('\n')
+    // 모든 일별 업무를 줄 단위로 파싱
+    const allLines: string[] = []
+    for (const entry of dailyEntries) {
+      const cleaned = cleanContent(entry.content)
+      const lines = cleaned.split('\n')
+        .map(l => l.replace(/^\d{6}\s*/, '').replace(/^[-•\s]+/, '').trim())
+        .filter(l => l.length >= 3)
+        // 날짜행, 회고, 감상 등 제외
+        .filter(l => !/^\d{2,4}[\.\-\/]?\d{0,2}[\.\-\/]?\d{0,2}/.test(l))
+        .filter(l => !/^<(업무|회고)>/.test(l))
+        .filter(l => !l.startsWith('✔'))
+      allLines.push(...lines)
+    }
 
-    const prompt = `아래는 ${memberName}의 ${startDate}~${endDate} 주간 업무 로그다.
-이 요약은 "지난 주 계획"과 비교하여 완료 여부를 확인하는 용도로 쓰인다.
+    // 프로젝트/카테고리별 그룹핑
+    const categories: Record<string, Set<string>> = {}
+    let currentCategory = '기타'
 
-${entries}
+    // 알려진 프로젝트 키워드
+    const PROJECT_KEYWORDS: [RegExp, string][] = [
+      [/AX\s*프로젝트|부스터\s*AX|프론트\s*AX/i, 'AX 프로젝트'],
+      [/위픽부스터\s*솔루션|솔루션/i, '위픽부스터 솔루션'],
+      [/AI\s*바우처/i, 'AI 바우처'],
+      [/랜딩\s*페이지|랜딩빌더/i, '랜딩페이지 빌더'],
+      [/위픽업/i, '위픽업'],
+      [/위픽레터|레터/i, '위픽레터'],
+      [/구독(형|솔루션|모델|제)/i, '구독솔루션'],
+      [/CRM|알림톡|SMS/i, 'CRM/알림톡'],
+    ]
 
-[출력 규칙]
-- 각 줄은 "• "로 시작. 5~10줄 허용
-- 프로젝트/업무 단위로 한 줄씩 나열하되, 구체적인 작업 내용을 포함 (예: "AX 프로젝트: 결제 기능 개발, 주문 페이지 수정, 프론트 디자인 반영")
-- 회의는 구체적 회의명을 나열 (예: "dev 회의, 스프린트 회의, 플랫폼팀 주간회의")
-- 루틴 업무(리드확인, 성과입력 등)도 한 줄로 나열
-- 날짜 쓰지 마. 마크다운 금지. 설명/평가 금지. 사실만 나열`
+    // 회의 패턴
+    const MEETING_RE = /회의|미팅|스프린트/
 
-    // 429 재시도 (최대 3회, 지수 백오프)
-    let res: Response | null = null
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (attempt > 0) {
-        await new Promise((r) => setTimeout(r, (attempt + 1) * 5000))
+    const meetings: string[] = []
+    const routines: string[] = []
+
+    for (const line of allLines) {
+      // 회의 감지
+      if (MEETING_RE.test(line) && line.length < 80) {
+        const meetingName = line.replace(/\(완료\)|\(참석\)/g, '').replace(/\d{1,2}:\d{2}[~\-]\s*\d{0,2}:?\d{0,2}\s*/g, '').trim()
+        if (meetingName.length >= 3 && !meetings.includes(meetingName)) {
+          meetings.push(meetingName)
+        }
+        continue
       }
-      res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: {
-              maxOutputTokens: 1024,
-              temperature: 0.1,
-              thinkingConfig: { thinkingBudget: 0 },
-            },
-          }),
-        },
-      )
-      if (res.status !== 429) break
-      console.warn(`Gemini 429, retry ${attempt + 1}/3...`)
+
+      // 루틴 감지
+      if (/관리지표|리드수\s*입력|리포팅|누락\s*리드|상품등록|문의답변/.test(line)) {
+        const routine = line.replace(/\(완료\)|\(완\)/g, '').trim()
+        if (routine.length >= 3 && !routines.includes(routine)) {
+          routines.push(routine)
+        }
+        continue
+      }
+
+      // 프로젝트 카테고리 감지
+      let matched = false
+      for (const [re, cat] of PROJECT_KEYWORDS) {
+        if (re.test(line)) {
+          currentCategory = cat
+          // 카테고리 헤더만 있는 줄은 건너뜀
+          const stripped = line.replace(re, '').replace(/[\[\]]/g, '').trim()
+          if (stripped.length >= 3) {
+            if (!categories[currentCategory]) categories[currentCategory] = new Set()
+            categories[currentCategory].add(stripped)
+          }
+          matched = true
+          break
+        }
+      }
+
+      if (!matched && line.length >= 5) {
+        // 하위 항목 (- , ㄴ 등으로 시작하던 것들)
+        if (!categories[currentCategory]) categories[currentCategory] = new Set()
+        // 상태 표시 제거
+        const clean = line
+          .replace(/\(완료\)|\(완\)|\(배포완료\)|\(배포대기\)|\(진행중\)|\(계속\)/g, '')
+          .replace(/^\[v\]\s*/i, '')
+          .trim()
+        if (clean.length >= 3) {
+          categories[currentCategory].add(clean)
+        }
+      }
     }
 
-    if (!res || !res.ok) {
-      const errText = res ? await res.text() : 'no response'
-      console.error('Gemini API error:', res?.status, errText.slice(0, 500))
-      return `[AI 요약 실패: ${res?.status}] 수동 확인 필요`
+    // 결과 조합
+    const result: string[] = []
+
+    for (const [cat, items] of Object.entries(categories)) {
+      if (cat === '기타' && items.size === 0) continue
+      const itemList = Array.from(items).slice(0, 8).join(', ')
+      if (itemList) {
+        result.push(`• ${cat}: ${itemList}`)
+      }
     }
 
-    const data = await res.json()
-    const result = data.candidates?.[0]?.content?.parts?.[0]?.text
-    if (!result) {
-      console.error('Gemini empty response:', JSON.stringify(data).slice(0, 500))
-      return '[AI 요약 실패] 빈 응답'
+    if (routines.length > 0) {
+      result.push(`• 루틴: ${routines.join(', ')}`)
     }
-    return result
+
+    if (meetings.length > 0) {
+      result.push(`• 회의: ${meetings.join(', ')}`)
+    }
+
+    if (result.length === 0) {
+      return dailyEntries.map((e) => `[${e.date}] ${cleanContent(e.content).slice(0, 200)}`).join('\n')
+    }
+
+    return result.join('\n')
   } catch (err) {
-    console.error('Gemini summary error:', err)
-    return `[AI 요약 실패] ${(err as Error).message}`
+    console.error('Weekly summary error:', err)
+    return dailyEntries.map((e) => e.content.replace(/<[^>]+>/g, '').slice(0, 100)).join('\n')
   }
 }
