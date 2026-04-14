@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
+import { AiQueryBox } from '@/src/components/kpis/AiQueryBox';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
   ResponsiveContainer, PieChart, Pie, Cell,
@@ -175,6 +176,9 @@ export default function FunnelPage() {
           </div>
 
           {/* 기간 선택 */}
+          </div>
+        <AiQueryBox />
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div className="flex items-center gap-1 rounded-lg border border-border bg-card p-1">
             {([['7d', '최근 7일'], ['30d', '최근 30일'], ['month', '이번 달']] as const).map(([val, label]) => (
               <button
