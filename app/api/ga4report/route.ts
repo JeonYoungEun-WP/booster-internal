@@ -131,7 +131,7 @@ export async function GET(request: NextRequest) {
     const accessToken = await getAccessToken()
     const dateRange = { startDate, endDate }
 
-    const [overviewReport, sourceReport, channelReport, pageReport, dailyReport] = await Promise.all([
+    const [overviewReport, sourceReport, channelReport, pageReport, dailyReport, eventReport] = await Promise.all([
       runReport(accessToken, {
         dateRanges: [dateRange],
         metrics: [
@@ -175,6 +175,13 @@ export async function GET(request: NextRequest) {
         metrics: [{ name: 'totalUsers' }],
         orderBys: [{ dimension: { dimensionName: 'date' } }],
       }),
+      // Clarity + 전환 이벤트 조회
+      runReport(accessToken, {
+        dateRanges: [dateRange],
+        dimensions: [{ name: 'eventName' }],
+        metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+        limit: 50,
+      }),
     ])
 
     const totals = extractTotals(overviewReport)
@@ -205,6 +212,28 @@ export async function GET(request: NextRequest) {
       visitors: r.metric,
     }))
 
+    // 이벤트 데이터 파싱
+    type EventRowType = { dimensionValues?: { value: string }[]; metricValues?: { value: string }[] }
+    const events = (eventReport.rows || []).map((row: EventRowType) => ({
+      event: row.dimensionValues?.[0]?.value || '',
+      count: parseInt(row.metricValues?.[0]?.value || '0', 10),
+      users: parseInt(row.metricValues?.[1]?.value || '0', 10),
+    }))
+
+    // Clarity 이벤트 분리
+    const clarityEvents: Record<string, { count: number; users: number }> = {}
+    const conversionEvents: Record<string, { count: number; users: number }> = {}
+    for (const e of events) {
+      if (e.event.startsWith('clarity_')) {
+        clarityEvents[e.event] = { count: e.count, users: e.users }
+      }
+      // 전환 이벤트 (상담신청, 회원가입, 구매 등)
+      if (['generate_lead', 'sign_up', 'purchase', 'form_submit', 'consultation_request',
+           'contact_form_submit', 'begin_checkout', 'add_to_cart'].includes(e.event)) {
+        conversionEvents[e.event] = { count: e.count, users: e.users }
+      }
+    }
+
     return NextResponse.json({
       totalVisitors,
       totalPageViews,
@@ -212,6 +241,9 @@ export async function GET(request: NextRequest) {
       channelGroups,
       trackPageSessions: { simulator, ebook, insight },
       dailyTrend,
+      events,
+      clarityEvents,
+      conversionEvents,
     })
   } catch (error) {
     console.error('GET /api/ga4report error:', error)
