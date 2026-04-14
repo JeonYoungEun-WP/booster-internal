@@ -57,6 +57,7 @@ export async function getAccessToken(): Promise<string> {
         scope: [
           'https://www.googleapis.com/auth/analytics.readonly',
           'https://www.googleapis.com/auth/cloud-platform',
+          'https://www.googleapis.com/auth/webmasters.readonly',
         ],
       }),
     })
