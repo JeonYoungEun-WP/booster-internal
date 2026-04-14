@@ -93,6 +93,55 @@ ${channelLines}
   }
 }
 
+export async function generateCustomAnalysis(query: string, context: string): Promise<string> {
+  const apiKey = process.env.GEMINI_API_KEY
+  if (!apiKey) return '분석 기능을 사용할 수 없습니다 (API 키 없음)'
+
+  try {
+    const prompt = `당신은 위픽부스터(B2B 마케팅 SaaS)의 데이터 분석가입니다.
+아래 데이터를 기반으로 사용자의 질문에 답해주세요.
+
+${context}
+
+[사용자 질문]
+${query}
+
+[응답 규칙]
+- 구체적 수치를 반드시 포함
+- bullet point(• )로 핵심 인사이트 5~8개 작성
+- 실행 가능한 액션 아이템 제시
+- B2B 서비스이므로 주말 트래픽 저조는 정상
+- 한국어로 작성, 마크다운 없이 텍스트만`
+
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: {
+            maxOutputTokens: 2048,
+            temperature: 0.3,
+            thinkingConfig: { thinkingBudget: 0 },
+          },
+        }),
+      },
+    )
+
+    if (!res.ok) {
+      console.error('Gemini custom analysis error:', res.status)
+      return '분석 생성에 실패했습니다. 잠시 후 다시 시도해주세요.'
+    }
+
+    const result = await res.json()
+    return result.candidates?.[0]?.content?.parts?.[0]?.text || '분석 결과를 생성할 수 없습니다.'
+  } catch (err) {
+    console.error('Custom analysis error:', err)
+    return '분석 중 오류가 발생했습니다.'
+  }
+}
+
 interface Project {
   id: string
   title: string
