@@ -12,11 +12,15 @@ import { formatNumber } from '@/src/lib/format';
 
 interface ChannelGroup { channel: string; sessions: number }
 interface SessionSource { source: string; sessions: number }
+interface EventData { event: string; count: number; users: number }
 interface GA4Data {
   totalVisitors: number;
   totalPageViews: number;
   channelGroups: ChannelGroup[];
   sessionSources: SessionSource[];
+  events?: EventData[];
+  clarityEvents?: Record<string, { count: number; users: number }>;
+  conversionEvents?: Record<string, { count: number; users: number }>;
 }
 
 interface LeadRecord {
@@ -319,35 +323,60 @@ export default function FunnelPage() {
                   </div>
                 </div>
 
-                {/* Clarity 플레이스홀더 */}
-                <div className="rounded-lg border border-dashed border-purple-300 bg-purple-50/50 dark:bg-purple-950/20 p-5">
-                  <div className="flex items-center gap-2 mb-3">
-                    <svg className="w-5 h-5 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                    <h3 className="font-semibold text-purple-700 dark:text-purple-300">Microsoft Clarity</h3>
+                {/* Clarity 이벤트 (GA4 연동) */}
+                {ga4?.clarityEvents && Object.keys(ga4.clarityEvents).length > 0 ? (
+                  <div className="rounded-lg border border-purple-200 bg-purple-50/50 dark:bg-purple-950/20 p-4">
+                    <h3 className="font-semibold text-purple-700 dark:text-purple-300 text-sm mb-3">Clarity UX 이벤트</h3>
+                    <div className="space-y-2">
+                      {Object.entries(ga4.clarityEvents).map(([name, data]) => (
+                        <div key={name} className="flex justify-between items-center text-sm">
+                          <span className="text-muted-foreground">{name.replace('clarity_has_', '').replace(/_/g, ' ')}</span>
+                          <span className="font-medium">{formatNumber(data.count)}회 ({data.users}명)</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-4">
-                    Clarity 대시보드에서 히트맵, 세션 녹화, 분노 클릭 등을 확인하세요
-                  </p>
-                  <a
-                    href="https://clarity.microsoft.com"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors"
-                  >
-                    Clarity 열기
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                    </svg>
-                  </a>
-                </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed border-purple-300 bg-purple-50/50 dark:bg-purple-950/20 p-4">
+                    <h3 className="font-semibold text-purple-700 dark:text-purple-300 text-sm mb-2">Clarity UX 이벤트</h3>
+                    <p className="text-xs text-muted-foreground">Clarity-GA4 연동 데이터 수집 중 (1~2일 후 표시)</p>
+                  </div>
+                )}
 
-                {/* 추가 안내 */}
-                <p className="text-xs text-muted-foreground leading-relaxed">
-                  Clarity는 별도 API를 제공하지 않아 직접 연동이 불가합니다. 위 링크에서 실시간 세션 녹화, 히트맵, 인사이트 대시보드를 확인할 수 있습니다.
-                </p>
+                {/* GTM 사용자 행동 이벤트 */}
+                {ga4?.events && (() => {
+                  const uxEvents = (ga4.events || []).filter((e: EventData) =>
+                    ['scroll_depth', 'navigationbar_click', 'view_item', 'kakao_floating_click',
+                     'form_start', 'click', 'view_search_results', '\uC778\uC0AC\uC774\uD2B8_\uD655\uC778', '\uC131\uACF5\uC0AC\uB840_\uD655\uC778',
+                     'GNB_\uB2E8\uAC00\uC870\uD68C\uD558\uAE30_click'].includes(e.event)
+                  ).sort((a: EventData, b: EventData) => b.count - a.count);
+                  return uxEvents.length > 0 ? (
+                    <div className="rounded-lg border border-purple-200 p-4">
+                      <h3 className="font-semibold text-sm mb-3">사용자 행동 이벤트 (GTM)</h3>
+                      <div className="space-y-1.5">
+                        {uxEvents.slice(0, 8).map((e: EventData) => (
+                          <div key={e.event} className="flex justify-between items-center text-sm">
+                            <span className="text-muted-foreground">{e.event}</span>
+                            <span className="font-medium">{formatNumber(e.count)}회 <span className="text-xs text-muted-foreground">({e.users}명)</span></span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                {/* Clarity 대시보드 링크 */}
+                <a
+                  href="https://clarity.microsoft.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-purple-600 px-4 py-2 text-sm font-medium text-white hover:bg-purple-700 transition-colors"
+                >
+                  Clarity 대시보드 열기
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                </a>
               </div>
             </div>
 
