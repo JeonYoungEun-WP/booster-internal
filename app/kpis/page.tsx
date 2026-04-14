@@ -12,12 +12,20 @@ export default function KPIsPage() {
       <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold">GA 리포트</h1>
-          <Link
-            href="/kpis/weekly-report"
-            className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted/50"
-          >
-            주간 리포트
-          </Link>
+          <div className="flex gap-2">
+            <Link
+              href="/kpis/funnel"
+              className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
+            >
+              풀퍼널 분석
+            </Link>
+            <Link
+              href="/kpis/weekly-report"
+              className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted/50"
+            >
+              주간 리포트
+            </Link>
+          </div>
         </div>
         <section className="space-y-4">
           <GA4YesterdayBanner />
