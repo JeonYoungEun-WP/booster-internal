@@ -123,34 +123,34 @@ export function AiQueryBox() {
       let fullText = '';
       const charts: ChartBlock[] = [];
       const decoder = new TextDecoder();
+      let buffer = '';
 
-      // 스트리밍 응답 파싱
+      // 스트리밍 응답 파싱 (UI Message Stream Protocol)
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
 
-        const chunk = decoder.decode(value, { stream: true });
-        const lines = chunk.split('\n').filter(l => l.trim());
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || ''; // 마지막 불완전 라인 보존
 
         for (const line of lines) {
-          // UI message stream protocol 파싱
-          if (line.startsWith('0:')) {
-            // text delta
-            try {
-              const text = JSON.parse(line.slice(2));
-              fullText += text;
+          const trimmed = line.trim();
+          if (!trimmed || !trimmed.startsWith('data: ')) continue;
+          const dataStr = trimmed.slice(6);
+          if (dataStr === '[DONE]') continue;
+
+          try {
+            const data = JSON.parse(dataStr);
+
+            if (data.type === 'text-delta' && data.delta) {
+              fullText += data.delta;
               setMessages([...allMessages, { id: assistantId, role: 'assistant', content: fullText, charts: [...charts] }]);
-            } catch { /* skip */ }
-          } else if (line.startsWith('a:')) {
-            // tool call
-            try {
-              const toolData = JSON.parse(line.slice(2));
-              if (toolData?.toolName === 'chartData' && toolData?.args) {
-                charts.push(toolData.args as ChartBlock);
-                setMessages([...allMessages, { id: assistantId, role: 'assistant', content: fullText, charts: [...charts] }]);
-              }
-            } catch { /* skip */ }
-          }
+            } else if (data.type === 'tool-call' && data.toolName === 'chartData' && data.args) {
+              charts.push(data.args as ChartBlock);
+              setMessages([...allMessages, { id: assistantId, role: 'assistant', content: fullText, charts: [...charts] }]);
+            }
+          } catch { /* skip unparseable lines */ }
         }
       }
 
