@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import ReactMarkdown from 'react-markdown';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -199,10 +200,8 @@ export function AiQueryBox() {
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-xl px-4 py-3 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted/50'}`}>
               {msg.content && (
-                <div className="space-y-1.5">
-                  {msg.content.split('\n').filter(l => l.trim()).map((line, i) => (
-                    <p key={i} className="text-sm leading-relaxed">{line}</p>
-                  ))}
+                <div className="prose prose-sm dark:prose-invert max-w-none text-sm leading-relaxed [&_table]:w-full [&_table]:border-collapse [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2 [&_ul]:space-y-1 [&_ol]:space-y-1">
+                  <ReactMarkdown>{msg.content}</ReactMarkdown>
                 </div>
               )}
               {msg.charts?.map((chart, i) => (
