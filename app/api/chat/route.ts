@@ -5,9 +5,22 @@ import { getAccessToken, runGA4Report } from '@/src/lib/ga4-server'
 
 export const maxDuration = 60
 
-const BASE_URL = process.env.VERCEL_URL
-  ? 'https://' + process.env.VERCEL_URL
-  : 'http://localhost:3001'
+// Odoo config
+const ODOO_URL = process.env.ODOO_URL || 'https://works.wepick.kr'
+const ODOO_DB = process.env.ODOO_DB || 'works'
+const ODOO_USERNAME = process.env.ODOO_USERNAME
+const ODOO_API_KEY = process.env.ODOO_API_KEY
+
+async function odooRpc(service: string, method: string, args: unknown[]) {
+  const res = await fetch(`${ODOO_URL}/jsonrpc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', method: 'call', params: { service, method, args }, id: Date.now() }),
+  })
+  const data = await res.json()
+  if (data.error) throw new Error(data.error.data?.message || 'Odoo RPC error')
+  return data.result
+}
 
 // Tool parameter schemas
 const ga4Schema = z.object({
@@ -24,8 +37,8 @@ const ga4ReportSchema = z.object({
 })
 
 const leadsSchema = z.object({
-  startDate: z.string().describe('시작일 (YYYY-MM-DD HH:mm:ss)'),
-  endDate: z.string().describe('종료일 (YYYY-MM-DD HH:mm:ss)'),
+  startDate: z.string().describe('시작일 (YYYY-MM-DD)'),
+  endDate: z.string().describe('종료일 (YYYY-MM-DD)'),
 })
 
 const chartSchema = z.object({
@@ -43,17 +56,77 @@ const chartSchema = z.object({
 type GA4Params = z.infer<typeof ga4Schema>
 type GA4ReportParams = z.infer<typeof ga4ReportSchema>
 type LeadsParams = z.infer<typeof leadsSchema>
+type RowType = { dimensionValues?: { value: string }[]; metricValues?: { value: string }[] }
 
-// Tool executors
+// GA4 기본 데이터 조회 (직접 API 호출)
 async function executeGA4(params: GA4Params) {
-  const res = await fetch(`${BASE_URL}/api/ga4report?startDate=${params.startDate}&endDate=${params.endDate}`)
-  return res.json()
+  const accessToken = await getAccessToken()
+  const dateRange = { startDate: params.startDate, endDate: params.endDate }
+
+  const [overviewReport, channelReport, sourceReport, dailyReport, eventReport] = await Promise.all([
+    runGA4Report(accessToken, {
+      dateRanges: [dateRange],
+      metrics: [{ name: 'totalUsers' }, { name: 'screenPageViews' }],
+      metricAggregations: ['TOTAL'],
+    }),
+    runGA4Report(accessToken, {
+      dateRanges: [dateRange],
+      dimensions: [{ name: 'sessionDefaultChannelGroup' }],
+      metrics: [{ name: 'sessions' }],
+      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+      limit: 10,
+    }),
+    runGA4Report(accessToken, {
+      dateRanges: [dateRange],
+      dimensions: [{ name: 'sessionSource' }],
+      metrics: [{ name: 'sessions' }],
+      orderBys: [{ metric: { metricName: 'sessions' }, desc: true }],
+      limit: 10,
+    }),
+    runGA4Report(accessToken, {
+      dateRanges: [dateRange],
+      dimensions: [{ name: 'date' }],
+      metrics: [{ name: 'totalUsers' }],
+      orderBys: [{ dimension: { dimensionName: 'date' } }],
+    }),
+    runGA4Report(accessToken, {
+      dateRanges: [dateRange],
+      dimensions: [{ name: 'eventName' }],
+      metrics: [{ name: 'eventCount' }, { name: 'totalUsers' }],
+      limit: 30,
+    }),
+  ])
+
+  const totals = overviewReport.totals?.[0]?.metricValues || []
+  const channels = (channelReport.rows || []).map((r: RowType) => ({
+    channel: r.dimensionValues?.[0]?.value, sessions: parseInt(r.metricValues?.[0]?.value || '0'),
+  }))
+  const sources = (sourceReport.rows || []).map((r: RowType) => ({
+    source: r.dimensionValues?.[0]?.value, sessions: parseInt(r.metricValues?.[0]?.value || '0'),
+  }))
+  const daily = (dailyReport.rows || []).map((r: RowType) => ({
+    date: r.dimensionValues?.[0]?.value, visitors: parseInt(r.metricValues?.[0]?.value || '0'),
+  }))
+  const events = (eventReport.rows || []).map((r: RowType) => ({
+    event: r.dimensionValues?.[0]?.value,
+    count: parseInt(r.metricValues?.[0]?.value || '0'),
+    users: parseInt(r.metricValues?.[1]?.value || '0'),
+  }))
+
+  return {
+    totalVisitors: parseInt(totals[0]?.value || '0'),
+    totalPageViews: parseInt(totals[1]?.value || '0'),
+    channelGroups: channels,
+    sessionSources: sources,
+    dailyTrend: daily,
+    events,
+  }
 }
 
+// GA4 커스텀 리포트
 async function executeGA4Report(params: GA4ReportParams) {
   try {
     const accessToken = await getAccessToken()
-    type RowType = { dimensionValues?: { value: string }[]; metricValues?: { value: string }[] }
     const report = await runGA4Report(accessToken, {
       dateRanges: [{ startDate: params.startDate, endDate: params.endDate }],
       dimensions: params.dimensions.map((n: string) => ({ name: n })),
@@ -71,12 +144,28 @@ async function executeGA4Report(params: GA4ReportParams) {
   }
 }
 
+// Odoo 리드 조회 (직접 RPC 호출)
 async function executeLeads(params: LeadsParams) {
-  const res = await fetch(`${BASE_URL}/api/leads?action=monthly&startDate=${encodeURIComponent(params.startDate)}&endDate=${encodeURIComponent(params.endDate)}`)
-  const data = await res.json()
-  const records: Record<string, unknown>[] = data.records || []
-  const paid = records.filter(r => String(r.x_studio_selection_field_8p8_1i3up6bfn || '').toLowerCase() === 'paid').length
-  return { total: records.length, paid, organic: records.length - paid }
+  if (!ODOO_USERNAME || !ODOO_API_KEY) return { total: 0, paid: 0, organic: 0, error: 'Odoo not configured' }
+  try {
+    const uid = await odooRpc('common', 'authenticate', [ODOO_DB, ODOO_USERNAME, ODOO_API_KEY, {}])
+    if (!uid) return { total: 0, paid: 0, organic: 0, error: 'Auth failed' }
+
+    const domain: unknown[] = []
+    if (params.startDate) domain.push(['create_date', '>=', params.startDate])
+    if (params.endDate) domain.push(['create_date', '<=', params.endDate + ' 23:59:59'])
+
+    const records = await odooRpc('object', 'execute_kw', [
+      ODOO_DB, uid, ODOO_API_KEY, 'crm.lead', 'search_read',
+      [domain],
+      { fields: ['create_date', 'x_studio_selection_field_8p8_1i3up6bfn'], limit: 500 },
+    ]) as Record<string, unknown>[]
+
+    const paid = records.filter(r => String(r.x_studio_selection_field_8p8_1i3up6bfn || '').toLowerCase() === 'paid').length
+    return { total: records.length, paid, organic: records.length - paid }
+  } catch (err) {
+    return { total: 0, paid: 0, organic: 0, error: (err as Error).message }
+  }
 }
 
 export async function POST(req: Request) {
