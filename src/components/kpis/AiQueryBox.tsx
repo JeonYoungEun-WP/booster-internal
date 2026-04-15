@@ -181,61 +181,28 @@ export function AiQueryBox() {
     setChatOpen(false);
   };
 
-  // 축소 모드
-  if (!chatOpen && messages.length === 0) {
-    return (
-      <div className="rounded-xl border border-border bg-card shadow-sm p-5">
-        <div className="flex items-center gap-2 mb-3">
-          <div className="rounded-lg bg-primary/10 p-1.5">
-            <svg className="w-5 h-5 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
-          </div>
-          <h2 className="font-semibold text-sm">AI 데이터 분석</h2>
-          <span className="text-xs text-muted-foreground">GA4 + Odoo 실시간 조회 · 대화형 분석</span>
-        </div>
-        <form onSubmit={handleSubmit} className="flex gap-2">
-          <input
-            type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="분석하고 싶은 내용을 입력하세요..."
-            className="flex-1 rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-          />
-          <button type="submit" disabled={!input.trim()} className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap">
-            분석
-          </button>
-        </form>
-        <div className="flex flex-wrap gap-2 mt-3">
-          {EXAMPLES.map((ex) => (
-            <button key={ex} onClick={() => setInput(ex)} className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors">
-              {ex}
-            </button>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  // 채팅 모드
   return (
-    <div className="rounded-xl border border-border bg-card shadow-sm overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-3 border-b border-border bg-muted/30">
-        <div className="flex items-center gap-2">
-          <div className="rounded-lg bg-primary/10 p-1.5">
-            <svg className="w-4 h-4 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-            </svg>
+    <div className="flex flex-col h-[calc(100vh-180px)]">
+      {/* 메시지 영역 */}
+      <div ref={scrollRef} className="flex-1 overflow-y-auto px-2 py-4 space-y-4">
+        {messages.length === 0 && (
+          <div className="flex flex-col items-center justify-center h-full text-center">
+            <div className="rounded-full bg-primary/10 p-4 mb-4">
+              <svg className="w-8 h-8 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+              </svg>
+            </div>
+            <p className="text-muted-foreground text-sm mb-6">GA4, Odoo 데이터를 실시간으로 조회하여 분석합니다</p>
+            <div className="flex flex-wrap justify-center gap-2 max-w-lg">
+              {EXAMPLES.map((ex) => (
+                <button key={ex} onClick={() => setInput(ex)} className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors">
+                  {ex}
+                </button>
+              ))}
+            </div>
           </div>
-          <h2 className="font-semibold text-sm">AI 데이터 분석</h2>
-          {loading && <span className="text-xs text-primary animate-pulse">분석 중...</span>}
-        </div>
-        <button onClick={handleClear} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-          대화 초기화
-        </button>
-      </div>
+        )}
 
-      <div ref={scrollRef} className="max-h-[500px] overflow-y-auto p-5 space-y-4">
         {messages.map((msg) => (
           <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] rounded-xl px-4 py-3 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted/50'}`}>
@@ -264,18 +231,26 @@ export function AiQueryBox() {
         )}
       </div>
 
-      <div className="border-t border-border p-4">
+      {/* 하단 고정 입력창 */}
+      <div className="sticky bottom-0 border-t border-border bg-card p-4">
+        {messages.length > 0 && (
+          <div className="flex justify-end mb-2">
+            <button onClick={handleClear} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              대화 초기화
+            </button>
+          </div>
+        )}
         <form onSubmit={handleSubmit} className="flex gap-2">
           <input
             type="text"
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="이어서 질문하세요..."
-            className="flex-1 rounded-lg border border-border bg-background px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            placeholder={messages.length === 0 ? '분석하고 싶은 내용을 입력하세요...' : '이어서 질문하세요...'}
+            className="flex-1 rounded-lg border border-border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
             disabled={loading}
           />
-          <button type="submit" disabled={loading || !input.trim()} className="rounded-lg bg-primary px-5 py-2.5 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap">
-            {loading ? '...' : '전송'}
+          <button type="submit" disabled={loading || !input.trim()} className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap">
+            {loading ? '분석 중...' : '전송'}
           </button>
         </form>
       </div>
