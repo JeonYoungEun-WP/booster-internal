@@ -1,4 +1,4 @@
-import { streamText } from 'ai'
+import { streamText, stepCountIs } from 'ai'
 import { google } from '@ai-sdk/google'
 import { z } from 'zod'
 import { getAccessToken, runGA4Report } from '@/src/lib/ga4-server'
@@ -144,6 +144,17 @@ async function executeGA4Report(params: GA4ReportParams) {
   }
 }
 
+// 상대 날짜를 실제 날짜로 변환
+function resolveDate(d: string): string {
+  if (/^\d{4}-\d{2}-\d{2}$/.test(d)) return d
+  const now = new Date()
+  if (d === 'yesterday') { now.setDate(now.getDate() - 1); return now.toISOString().slice(0, 10) }
+  if (d === 'today') return now.toISOString().slice(0, 10)
+  const m = d.match(/^(\d+)daysAgo$/)
+  if (m) { now.setDate(now.getDate() - parseInt(m[1])); return now.toISOString().slice(0, 10) }
+  return d
+}
+
 // Odoo 리드 조회 (직접 RPC 호출)
 async function executeLeads(params: LeadsParams) {
   if (!ODOO_USERNAME || !ODOO_API_KEY) return { total: 0, paid: 0, organic: 0, error: 'Odoo not configured' }
@@ -152,8 +163,10 @@ async function executeLeads(params: LeadsParams) {
     if (!uid) return { total: 0, paid: 0, organic: 0, error: 'Auth failed' }
 
     const domain: unknown[] = []
-    if (params.startDate) domain.push(['create_date', '>=', params.startDate])
-    if (params.endDate) domain.push(['create_date', '<=', params.endDate + ' 23:59:59'])
+    const start = resolveDate(params.startDate)
+    const end = resolveDate(params.endDate)
+    if (start) domain.push(['create_date', '>=', start])
+    if (end) domain.push(['create_date', '<=', end + ' 23:59:59'])
 
     const records = await odooRpc('object', 'execute_kw', [
       ODOO_DB, uid, ODOO_API_KEY, 'crm.lead', 'search_read',
@@ -195,6 +208,7 @@ export async function POST(req: Request) {
       getLeads: { description: 'Odoo CRM 리드 데이터를 조회합니다. 상담신청 건수, Paid/Organic 구분을 가져옵니다.', inputSchema: leadsSchema, execute: executeLeads },
       chartData: { description: '채팅에 차트를 표시합니다. 데이터와 차트 타입을 지정하면 UI에서 렌더링됩니다.', inputSchema: chartSchema },
     },
+    stopWhen: stepCountIs(5),
   })
 
   return result.toUIMessageStreamResponse()
