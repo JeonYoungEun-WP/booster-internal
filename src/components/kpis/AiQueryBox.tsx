@@ -117,48 +117,28 @@ export function AiQueryBox() {
       if (!res.ok) throw new Error('API error');
 
       const assistantId = (Date.now() + 1).toString();
-      let fullText = '';
       const charts: ChartBlock[] = [];
 
-      // 전체 응답을 텍스트로 읽어서 SSE 파싱
-      const reader = res.body?.getReader();
-      if (!reader) throw new Error('No reader');
-      const decoder = new TextDecoder();
-      let raw = '';
+      // SSE 응답을 전체 텍스트로 읽기
+      const raw = await res.text();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value, { stream: true });
-        raw += chunk;
-
-        // 지금까지 받은 전체 텍스트에서 text-delta 추출
-        let accumulated = '';
-        const dataLines = raw.split('\n');
-        for (const line of dataLines) {
-          const trimmed = line.trim();
-          if (!trimmed.startsWith('data: ')) continue;
-          const dataStr = trimmed.slice(6);
-          if (dataStr === '[DONE]') continue;
-          try {
-            const data = JSON.parse(dataStr);
-            if (data.type === 'text-delta' && data.delta) {
-              accumulated += data.delta;
-            } else if (data.type === 'tool-call' && data.toolName === 'chartData' && data.args) {
-              // 중복 방지
-              const exists = charts.some(c => c.title === (data.args as ChartBlock).title);
-              if (!exists) charts.push(data.args as ChartBlock);
-            }
-          } catch { /* skip */ }
-        }
-
-        if (accumulated !== fullText) {
-          fullText = accumulated;
-          setMessages([...allMessages, { id: assistantId, role: 'assistant', content: fullText, charts: [...charts] }]);
-        }
+      // text-delta에서 텍스트 추출
+      let fullText = '';
+      for (const line of raw.split('\n')) {
+        const trimmed = line.trim();
+        if (!trimmed.startsWith('data: ')) continue;
+        const dataStr = trimmed.slice(6);
+        if (dataStr === '[DONE]') continue;
+        try {
+          const data = JSON.parse(dataStr);
+          if (data.type === 'text-delta' && data.delta) {
+            fullText += data.delta;
+          } else if (data.type === 'tool-call' && data.toolName === 'chartData' && data.args) {
+            charts.push(data.args as ChartBlock);
+          }
+        } catch { /* skip */ }
       }
 
-      // 최종 업데이트
       if (fullText || charts.length > 0) {
         setMessages([...allMessages, { id: assistantId, role: 'assistant', content: fullText, charts }]);
       } else {
