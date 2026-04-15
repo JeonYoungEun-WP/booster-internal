@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import { AiQueryBox } from '@/src/components/kpis/AiQueryBox';
 import { GA4YesterdayBanner } from '@/src/components/kpis/GA4YesterdayBanner';
 import { SuspiciousTrafficBanner } from '@/src/components/kpis/SuspiciousTrafficBanner';
 import { GA4SessionSourceTable } from '@/src/components/kpis/GA4SessionSourceTable';
@@ -15,8 +14,14 @@ export default function KPIsPage() {
           <h1 className="text-2xl font-bold">GA 리포트</h1>
           <div className="flex gap-2">
             <Link
-              href="/kpis/funnel"
+              href="/kpis/ai"
               className="rounded-lg bg-primary px-3 py-1.5 text-sm text-primary-foreground hover:bg-primary/90"
+            >
+              AI 분석
+            </Link>
+            <Link
+              href="/kpis/funnel"
+              className="rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-muted/50"
             >
               풀퍼널 분석
             </Link>
@@ -28,7 +33,6 @@ export default function KPIsPage() {
             </Link>
           </div>
         </div>
-        <AiQueryBox />
         <section className="space-y-4">
           <GA4YesterdayBanner />
           <SuspiciousTrafficBanner />
