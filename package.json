@@ -9,11 +9,14 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@ai-sdk/google": "^3.0.63",
+    "@ai-sdk/react": "^3.0.163",
     "@prisma/adapter-pg": "^7.4.2",
     "@prisma/client": "^7.4.1",
     "@supabase/supabase-js": "^2.98.0",
     "@vercel/functions": "^3.4.3",
     "@vercel/oidc": "^3.2.0",
+    "ai": "^6.0.161",
     "clsx": "^2.1.1",
     "google-auth-library": "^10.6.1",
     "lucide-react": "^0.575.0",
