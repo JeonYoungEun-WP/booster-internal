@@ -105,7 +105,15 @@ export function AiQueryBox() {
     setLoading(true);
 
     // AI SDK 형식으로 메시지 변환
-    const apiMessages = allMessages.map(m => ({ role: m.role, content: m.content }));
+    // 이전 대화 맥락을 전달 (assistant 메시지는 500자로 제한, 빈 메시지 제외)
+    const apiMessages = allMessages
+      .filter(m => m.content.trim())
+      .map(m => ({
+        role: m.role,
+        content: m.role === 'assistant' && m.content.length > 500
+          ? m.content.slice(0, 500) + '...(이하 생략)'
+          : m.content,
+      }));
 
     try {
       const res = await fetch('/api/chat', {
