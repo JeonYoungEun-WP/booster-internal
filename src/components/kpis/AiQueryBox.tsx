@@ -21,10 +21,12 @@ const EXAMPLES = [
   '지난 30일 페이지별 성과 분석',
 ];
 
+interface SeriesDef { key: string; label: string; color?: string }
 interface ChartBlock {
   title: string;
   type: 'bar' | 'line' | 'pie';
-  data: { label: string; value: number; value2?: number }[];
+  data: { label: string; value: number; value2?: number; value3?: number; value4?: number }[];
+  series?: SeriesDef[];
   valueLabel?: string;
   value2Label?: string;
 }
@@ -46,21 +48,32 @@ function InlineChart({ chart }: { chart: ChartBlock }) {
       </div>
     );
   }
+  // 시리즈 정의: series가 있으면 사용, 없으면 기존 value/value2 방식
+  const seriesList: SeriesDef[] = chart.series || [
+    { key: 'value', label: chart.valueLabel || '값', color: CHART_COLORS[0] },
+    ...(chart.data.some(d => d.value2 !== undefined) ? [{ key: 'value2', label: chart.value2Label || '비교', color: CHART_COLORS[1] }] : []),
+  ];
+
   const ChartComp = chart.type === 'line' ? LineChart : BarChart;
   return (
     <div className="my-3 rounded-lg border border-border bg-background p-4">
       <p className="text-sm font-semibold mb-2">{chart.title}</p>
-      <ResponsiveContainer width="100%" height={220}>
+      <ResponsiveContainer width="100%" height={260}>
         <ChartComp data={chart.data} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e5e8eb" />
-          <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+          <XAxis dataKey="label" tick={{ fontSize: 10 }} />
           <YAxis tick={{ fontSize: 11 }} />
           <Tooltip formatter={(v) => formatNumber(Number(v))} />
-          {chart.type === 'line' ? (
-            <Line type="monotone" dataKey="value" name={chart.valueLabel || '값'} stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
-          ) : (
-            <Bar dataKey="value" name={chart.valueLabel || '값'} fill="#3b82f6" radius={[4, 4, 0, 0]} />
-          )}
+          {seriesList.map((s, i) => (
+            chart.type === 'line' ? (
+              <Line key={s.key} type="monotone" dataKey={s.key} name={s.label}
+                stroke={s.color || CHART_COLORS[i % CHART_COLORS.length]} strokeWidth={2} dot={{ r: 3 }}
+                strokeDasharray={i >= 2 ? '5 5' : undefined} />
+            ) : (
+              <Bar key={s.key} dataKey={s.key} name={s.label}
+                fill={s.color || CHART_COLORS[i % CHART_COLORS.length]} radius={[3, 3, 0, 0]} />
+            )
+          ))}
         </ChartComp>
       </ResponsiveContainer>
     </div>

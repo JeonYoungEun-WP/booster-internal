@@ -48,9 +48,16 @@ const chartSchema = z.object({
     label: z.string(),
     value: z.number(),
     value2: z.number().optional(),
-  })).describe('차트 데이터 배열'),
-  valueLabel: z.string().optional().describe('값 레이블'),
-  value2Label: z.string().optional().describe('두번째 값 레이블'),
+    value3: z.number().optional(),
+    value4: z.number().optional(),
+  })).describe('차트 데이터 배열. 최대 4개 시리즈 지원'),
+  series: z.array(z.object({
+    key: z.enum(['value', 'value2', 'value3', 'value4']),
+    label: z.string(),
+    color: z.string().optional(),
+  })).optional().describe('시리즈 정의. 미지정시 value/value2만 사용'),
+  valueLabel: z.string().optional().describe('value 레이블 (series 미지정시 사용)'),
+  value2Label: z.string().optional().describe('value2 레이블 (series 미지정시 사용)'),
 })
 
 type GA4Params = z.infer<typeof ga4Schema>
@@ -213,7 +220,8 @@ export async function POST(req: Request) {
 - 실행 가능한 액션 아이템 제시
 - B2B 서비스이므로 주말 트래픽 저조는 정상
 - 한국어로 답변
-- 차트가 도움이 되면 chartData 도구를 호출하세요`,
+- 차트가 도움이 되면 chartData 도구를 호출하세요. 최대 4개 시리즈(value~value4)를 지원합니다.
+- 복합 차트 예시: series: [{key:"value",label:"UVs"},{key:"value2",label:"PVs"},{key:"value3",label:"해외UVs"}]`,
     messages,
     tools: {
       getGA4Data: { description: 'GA4 데이터를 조회합니다. 채널별 세션, 소스별 세션, 일별 방문자, 이벤트 등을 가져옵니다.', inputSchema: ga4Schema, execute: executeGA4 },
