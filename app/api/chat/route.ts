@@ -221,7 +221,9 @@ export async function POST(req: Request) {
 - B2B 서비스이므로 주말 트래픽 저조는 정상
 - 한국어로 답변
 - 차트가 도움이 되면 chartData 도구를 호출하세요. 최대 4개 시리즈(value~value4)를 지원합니다.
-- 복합 차트 예시: series: [{key:"value",label:"UVs"},{key:"value2",label:"PVs"},{key:"value3",label:"해외UVs"}]`,
+- 복합 차트 예시: series: [{key:"value",label:"UVs"},{key:"value2",label:"PVs"},{key:"value3",label:"해외UVs"}]
+- GA4 리포트에서 국가별 데이터가 필요하면 country 차원만 단독 조회하고, 날짜별 데이터는 date 차원만 단독 조회하세요. date+country 조합은 데이터가 너무 커서 에러 발생합니다.
+- 주별 데이터는 isoYearIsoWeek 차원을 사용하세요. date 차원으로 가져와서 직접 주별 합산하지 마세요.`,
     messages,
     tools: {
       getGA4Data: { description: 'GA4 데이터를 조회합니다. 채널별 세션, 소스별 세션, 일별 방문자, 이벤트 등을 가져옵니다.', inputSchema: ga4Schema, execute: executeGA4 },
