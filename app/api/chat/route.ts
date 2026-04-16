@@ -3,7 +3,7 @@ import { google } from '@ai-sdk/google'
 import { z } from 'zod'
 import { getAccessToken, runGA4Report } from '@/src/lib/ga4-server'
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 // Odoo config
 const ODOO_URL = process.env.ODOO_URL || 'https://works.wepick.kr'
@@ -193,6 +193,8 @@ export async function POST(req: Request) {
 - "전환율", "리드", "성과" 관련 질문에는 getGA4Data와 getLeads를 모두 호출하세요.
 - "트래픽", "방문자", "채널" 관련 질문에는 getGA4Data를 호출하세요.
 - 항상 먼저 데이터를 조회한 뒤 답변하세요. 추가 정보를 요청하지 마세요.
+- 여러 주 데이터가 필요하면 getGA4Data를 한 번만 넓은 범위로 호출하세요(예: 56daysAgo~yesterday). 주별로 나눠서 여러 번 호출하지 마세요.
+- 오가닉/채널별 주간 추이가 필요하면 getGA4Report에서 date + sessionDefaultChannelGroup 차원을 사용하세요.
 
 답변 규칙:
 - 구체적 수치를 반드시 포함
