@@ -113,9 +113,10 @@ export function AiQueryBox() {
   const getCharts = (parts: typeof messages[0]['parts']): ChartBlock[] => {
     const charts: ChartBlock[] = [];
     for (const part of parts) {
-      if (part.type.startsWith('tool-') && 'toolCallId' in part) {
-        const p = part as unknown as { type: string; toolName?: string; input?: unknown };
-        if (p.toolName === 'chartData' && p.input) {
+      // tool-chartData 타입 또는 dynamic-tool with toolName=chartData
+      if (part.type === 'tool-chartData' || (part.type === 'dynamic-tool' && 'toolName' in part && (part as unknown as { toolName: string }).toolName === 'chartData')) {
+        const p = part as unknown as { input?: unknown };
+        if (p.input) {
           const args = p.input as ChartBlock;
           if (args?.data) charts.push(args);
         }
