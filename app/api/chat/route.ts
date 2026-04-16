@@ -227,7 +227,7 @@ export async function POST(req: Request) {
       getGA4Data: { description: 'GA4 데이터를 조회합니다. 채널별 세션, 소스별 세션, 일별 방문자, 이벤트 등을 가져옵니다.', inputSchema: ga4Schema, execute: executeGA4 },
       getGA4Report: { description: 'GA4 커스텀 리포트를 실행합니다. 특정 dimension과 metric 조합으로 상세 데이터를 조회합니다.', inputSchema: ga4ReportSchema, execute: executeGA4Report },
       getLeads: { description: 'Odoo CRM 리드 데이터를 조회합니다. 상담신청 건수, Paid/Organic 구분을 가져옵니다.', inputSchema: leadsSchema, execute: executeLeads },
-      chartData: { description: '채팅에 차트를 표시합니다. 데이터와 차트 타입을 지정하면 UI에서 렌더링됩니다.', inputSchema: chartSchema },
+      chartData: { description: '채팅에 차트를 표시합니다. 데이터와 차트 타입을 지정하면 UI에서 렌더링됩니다.', inputSchema: chartSchema, execute: async (params) => ({ rendered: true, title: params.title, type: params.type, dataCount: params.data.length }) },
     },
     stopWhen: stepCountIs(5),
   })
