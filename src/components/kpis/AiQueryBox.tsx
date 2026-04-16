@@ -192,7 +192,7 @@ export function AiQueryBox() {
           );
         })}
 
-        {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
+        {isLoading && (
           <div className="flex justify-start">
             <div className="bg-muted/50 rounded-xl px-4 py-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -203,6 +203,13 @@ export function AiQueryBox() {
           </div>
         )}
       </div>
+
+      {/* 디버그: status 표시 */}
+      {status !== 'ready' && (
+        <div className="px-4 py-1 text-xs text-muted-foreground bg-muted/30 border-t border-border">
+          상태: {status} | 메시지: {messages.length}개
+        </div>
+      )}
 
       {/* 하단 고정 입력창 */}
       <div className="sticky bottom-0 border-t border-border bg-card p-4">
