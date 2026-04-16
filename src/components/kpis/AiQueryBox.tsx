@@ -106,13 +106,14 @@ export function AiQueryBox() {
     setLoading(true);
 
     // AI SDK 형식으로 메시지 변환
-    // 이전 대화 맥락을 전달 (assistant 메시지는 500자로 제한, 빈 메시지 제외)
-    const apiMessages = allMessages
+    // 이전 대화 맥락: 최근 2턴만 유지, assistant는 300자 제한
+    const recentMessages = allMessages.slice(-5);
+    const apiMessages = recentMessages
       .filter(m => m.content.trim())
       .map(m => ({
-        role: m.role,
-        content: m.role === 'assistant' && m.content.length > 500
-          ? m.content.slice(0, 500) + '...(이하 생략)'
+        role: m.role as 'user' | 'assistant',
+        content: m.role === 'assistant'
+          ? m.content.slice(0, 300) + (m.content.length > 300 ? '...' : '')
           : m.content,
       }));
 
