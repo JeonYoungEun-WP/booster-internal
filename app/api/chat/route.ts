@@ -182,7 +182,16 @@ async function executeLeads(params: LeadsParams) {
 }
 
 export async function POST(req: Request) {
-  const { messages } = await req.json()
+  const body = await req.json()
+
+  // useChat은 parts 형식으로 보내므로 content 형식으로 변환
+  const messages = (body.messages || []).map((msg: Record<string, unknown>) => {
+    if (msg.content) return msg
+    // parts 형식 → content 형식
+    const parts = msg.parts as Array<{ type: string; text?: string }> | undefined
+    const text = parts?.filter(p => p.type === 'text').map(p => p.text).join('') || ''
+    return { role: msg.role, content: text }
+  })
 
   const result = streamText({
     model: google('gemini-2.5-flash'),
