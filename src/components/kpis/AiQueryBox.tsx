@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useRef, useEffect, useCallback } from 'react';
+import { useChat } from '@ai-sdk/react';
+import { DefaultChatTransport } from 'ai';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
@@ -26,13 +28,6 @@ interface ChartBlock {
   value2Label?: string;
 }
 
-interface ChatMessage {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  charts?: ChartBlock[];
-}
-
 function InlineChart({ chart }: { chart: ChartBlock }) {
   if (chart.type === 'pie') {
     return (
@@ -50,7 +45,6 @@ function InlineChart({ chart }: { chart: ChartBlock }) {
       </div>
     );
   }
-
   const ChartComp = chart.type === 'line' ? LineChart : BarChart;
   return (
     <div className="my-3 rounded-lg border border-border bg-background p-4">
@@ -62,19 +56,9 @@ function InlineChart({ chart }: { chart: ChartBlock }) {
           <YAxis tick={{ fontSize: 11 }} />
           <Tooltip formatter={(v) => formatNumber(Number(v))} />
           {chart.type === 'line' ? (
-            <>
-              <Line type="monotone" dataKey="value" name={chart.valueLabel || '값'} stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
-              {chart.data.some(d => d.value2 !== undefined) && (
-                <Line type="monotone" dataKey="value2" name={chart.value2Label || '비교'} stroke="#94a3b8" strokeWidth={2} strokeDasharray="5 5" />
-              )}
-            </>
+            <Line type="monotone" dataKey="value" name={chart.valueLabel || '값'} stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} />
           ) : (
-            <>
-              <Bar dataKey="value" name={chart.valueLabel || '값'} fill="#3b82f6" radius={[4, 4, 0, 0]} />
-              {chart.data.some(d => d.value2 !== undefined) && (
-                <Bar dataKey="value2" name={chart.value2Label || '비교'} fill="#94a3b8" radius={[4, 4, 0, 0]} />
-              )}
-            </>
+            <Bar dataKey="value" name={chart.valueLabel || '값'} fill="#3b82f6" radius={[4, 4, 0, 0]} />
           )}
         </ChartComp>
       </ResponsiveContainer>
@@ -82,97 +66,69 @@ function InlineChart({ chart }: { chart: ChartBlock }) {
   );
 }
 
+const MD_CLASSES = `max-w-none text-sm leading-relaxed
+  [&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_table]:text-sm
+  [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold
+  [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2
+  [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 [&_ul]:space-y-1
+  [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 [&_ol]:space-y-1
+  [&_li]:leading-relaxed
+  [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2
+  [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-2
+  [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1
+  [&_p]:my-1.5 [&_strong]:font-bold
+  [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs`;
+
 export function AiQueryBox() {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [chatOpen, setChatOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [inputValue, setInputValue] = useState('');
+
+  const transport = useMemo(() => new DefaultChatTransport({ api: '/api/chat' }), []);
+
+  const { messages, sendMessage, status, setMessages } = useChat({
+    transport,
+  });
+
+  const isLoading = status === 'streaming' || status === 'submitted';
 
   useEffect(() => {
     if (scrollRef.current) {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
-  }, [messages]);
-
-  const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim() || loading) return;
-
-    const userMsg: ChatMessage = { id: Date.now().toString(), role: 'user', content: text };
-    const allMessages = [...messages, userMsg];
-    setMessages(allMessages);
-    setInput('');
-    setChatOpen(true);
-    setLoading(true);
-
-    // AI SDK 형식으로 메시지 변환
-    // 이전 대화 맥락: 최근 2턴만 유지, assistant는 300자 제한
-    const recentMessages = allMessages.slice(-5);
-    const apiMessages = recentMessages
-      .filter(m => m.content.trim())
-      .map(m => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.role === 'assistant'
-          ? m.content.slice(0, 300) + (m.content.length > 300 ? '...' : '')
-          : m.content,
-      }));
-
-    try {
-      const res = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: apiMessages }),
-      });
-
-      if (!res.ok) throw new Error('API error');
-
-      const assistantId = (Date.now() + 1).toString();
-      const charts: ChartBlock[] = [];
-
-      // SSE 응답을 전체 텍스트로 읽기
-      const raw = await res.text();
-
-      // text-delta에서 텍스트 추출
-      let fullText = '';
-      for (const line of raw.split('\n')) {
-        const trimmed = line.trim();
-        if (!trimmed.startsWith('data: ')) continue;
-        const dataStr = trimmed.slice(6);
-        if (dataStr === '[DONE]') continue;
-        try {
-          const data = JSON.parse(dataStr);
-          if (data.type === 'text-delta' && data.delta) {
-            fullText += data.delta;
-          } else if (data.type === 'tool-call' && data.toolName === 'chartData' && data.args) {
-            charts.push(data.args as ChartBlock);
-          }
-        } catch { /* skip */ }
-      }
-
-      if (fullText || charts.length > 0) {
-        setMessages([...allMessages, { id: assistantId, role: 'assistant', content: fullText, charts }]);
-      } else {
-        setMessages([...allMessages, { id: assistantId, role: 'assistant', content: '분석 결과를 생성할 수 없습니다.' }]);
-      }
-    } catch {
-      setMessages([...allMessages, {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: '오류가 발생했습니다. 다시 시도해주세요.',
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  }, [messages, loading]);
+  }, [messages, status]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    sendMessage(input);
+    if (!inputValue.trim() || isLoading) return;
+    sendMessage({ text: inputValue });
+    setInputValue('');
   };
 
   const handleClear = () => {
     setMessages([]);
-    setChatOpen(false);
+  };
+
+  // tool invocation에서 차트 추출
+  const getCharts = (parts: typeof messages[0]['parts']): ChartBlock[] => {
+    const charts: ChartBlock[] = [];
+    for (const part of parts) {
+      if (part.type.startsWith('tool-') && 'toolCallId' in part) {
+        const p = part as unknown as { type: string; toolName?: string; input?: unknown };
+        if (p.toolName === 'chartData' && p.input) {
+          const args = p.input as ChartBlock;
+          if (args?.data) charts.push(args);
+        }
+      }
+    }
+    return charts;
+  };
+
+  // 메시지에서 텍스트 추출
+  const getTextContent = (parts: typeof messages[0]['parts']): string => {
+    return parts
+      .filter(p => p.type === 'text')
+      .map(p => (p as { type: 'text'; text: string }).text)
+      .join('');
   };
 
   return (
@@ -189,7 +145,7 @@ export function AiQueryBox() {
             <p className="text-muted-foreground text-sm mb-6">GA4, Odoo 데이터를 실시간으로 조회하여 분석합니다</p>
             <div className="flex flex-wrap justify-center gap-2 max-w-lg">
               {EXAMPLES.map((ex) => (
-                <button key={ex} onClick={() => setInput(ex)} className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors">
+                <button key={ex} onClick={() => setInputValue(ex)} className="rounded-full border border-border px-4 py-2 text-sm text-muted-foreground hover:bg-muted/50 hover:text-foreground transition-colors">
                   {ex}
                 </button>
               ))}
@@ -197,35 +153,46 @@ export function AiQueryBox() {
           </div>
         )}
 
-        {messages.map((msg) => (
-          <div key={msg.id} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] rounded-xl px-4 py-3 ${msg.role === 'user' ? 'bg-primary text-primary-foreground' : 'bg-muted/50'}`}>
-              {msg.content && (
-                <div className={`max-w-none text-sm leading-relaxed
-                  [&_table]:w-full [&_table]:border-collapse [&_table]:my-3 [&_table]:text-sm
-                  [&_th]:border [&_th]:border-border [&_th]:bg-muted/50 [&_th]:px-3 [&_th]:py-2 [&_th]:text-left [&_th]:font-semibold
-                  [&_td]:border [&_td]:border-border [&_td]:px-3 [&_td]:py-2
-                  [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-2 [&_ul]:space-y-1
-                  [&_ol]:list-decimal [&_ol]:pl-5 [&_ol]:my-2 [&_ol]:space-y-1
-                  [&_li]:leading-relaxed
-                  [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2
-                  [&_h2]:text-base [&_h2]:font-bold [&_h2]:mt-3 [&_h2]:mb-2
-                  [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mt-2 [&_h3]:mb-1
-                  [&_p]:my-1.5
-                  [&_strong]:font-bold
-                  [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_code]:text-xs
-                  ${msg.role === 'user' ? '' : '[&_a]:text-primary [&_a]:underline'}
-                `}>
-                  <ReactMarkdown>{msg.content}</ReactMarkdown>
+        {messages.map((msg) => {
+          if (msg.role === 'user') {
+            const text = getTextContent(msg.parts);
+            return (
+              <div key={msg.id} className="flex justify-end">
+                <div className="max-w-[85%] rounded-xl px-4 py-3 bg-primary text-primary-foreground">
+                  <p className="text-sm">{text}</p>
                 </div>
-              )}
-              {msg.charts?.map((chart, i) => (
-                <InlineChart key={i} chart={chart} />
-              ))}
+              </div>
+            );
+          }
+
+          const text = getTextContent(msg.parts);
+          const charts = getCharts(msg.parts);
+          const hasToolCalls = msg.parts.some(p => p.type === 'tool-invocation');
+          const isThinking = hasToolCalls && !text;
+
+          return (
+            <div key={msg.id} className="flex justify-start">
+              <div className="max-w-[85%] rounded-xl px-4 py-3 bg-muted/50">
+                {isThinking && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <div className="w-3 h-3 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    데이터를 조회하고 분석하는 중...
+                  </div>
+                )}
+                {text && (
+                  <div className={MD_CLASSES}>
+                    <ReactMarkdown>{text}</ReactMarkdown>
+                  </div>
+                )}
+                {charts.map((chart, i) => (
+                  <InlineChart key={i} chart={chart} />
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-        {loading && messages[messages.length - 1]?.role === 'user' && (
+          );
+        })}
+
+        {isLoading && messages.length > 0 && messages[messages.length - 1]?.role === 'user' && (
           <div className="flex justify-start">
             <div className="bg-muted/50 rounded-xl px-4 py-3">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -249,14 +216,14 @@ export function AiQueryBox() {
         <form onSubmit={handleSubmit} className="flex gap-2">
           <input
             type="text"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
             placeholder={messages.length === 0 ? '분석하고 싶은 내용을 입력하세요...' : '이어서 질문하세요...'}
             className="flex-1 rounded-lg border border-border bg-background px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-            disabled={loading}
+            disabled={isLoading}
           />
-          <button type="submit" disabled={loading || !input.trim()} className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap">
-            {loading ? '분석 중...' : '전송'}
+          <button type="submit" disabled={isLoading || !inputValue.trim()} className="rounded-lg bg-primary px-6 py-3 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50 whitespace-nowrap">
+            {isLoading ? '분석 중...' : '전송'}
           </button>
         </form>
       </div>
