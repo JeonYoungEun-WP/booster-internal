@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation'
 
 const NAV_ITEMS = [
   { href: '/kpis', label: 'KPIs' },
-  { href: '/ad-performance', label: '광고성과분석' },
   { href: '/leads', label: '리드 관리' },
   { href: '/tasks', label: '업무 관리' },
 ]
