@@ -2,12 +2,21 @@
  * 광고매체 데이터 통합 라이브러리
  * 실제 API 키가 환경변수에 설정되면 실 데이터, 아니면 시뮬레이션 데이터를 반환합니다.
  *
+ * ⚠️ 최우선 규칙 (CLAUDE.md):
+ *   실제 매체 API 호출은 허가된 IP(222.109.27.119) 환경에서만 허용.
+ *   이 파일의 실제 API 분기 앞에는 반드시 `canCallMediaApi()` 가드를 둘 것.
+ *
  * 환경변수 (옵션):
  * - GOOGLE_ADS_DEVELOPER_TOKEN, GOOGLE_ADS_CUSTOMER_ID
  * - META_ADS_ACCESS_TOKEN, META_ADS_AD_ACCOUNT_ID
  * - NAVER_SEARCHAD_API_KEY, NAVER_SEARCHAD_CUSTOMER_ID
  * - KAKAO_MOMENT_ACCESS_TOKEN, KAKAO_MOMENT_AD_ACCOUNT_ID
+ * - TIKTOK_ADS_ACCESS_TOKEN, TIKTOK_ADS_ADVERTISER_ID
+ * - DANGGEUN_BIZ_API_KEY
+ * - SERVER_PUBLIC_IP (서버가 허가된 IP에서 실행 중인지 판단용)
  */
+
+import { canCallMediaApi, isServerOnAllowedIp } from './ip-guard'
 
 export type AdChannel = 'google' | 'meta' | 'naver' | 'kakao'
 
@@ -83,36 +92,47 @@ export interface IntegrationStatus {
 }
 
 export function getIntegrationStatus(): IntegrationStatus[] {
+  // 허가된 IP가 아니면 실제 연결로 보고하지 않음 (CLAUDE.md 최우선 규칙)
+  const ipOk = isServerOnAllowedIp()
   return [
     {
       channel: 'google',
       label: 'Google Ads',
-      connected: !!process.env.GOOGLE_ADS_DEVELOPER_TOKEN && !!process.env.GOOGLE_ADS_CUSTOMER_ID,
+      connected: ipOk && !!process.env.GOOGLE_ADS_DEVELOPER_TOKEN && !!process.env.GOOGLE_ADS_CUSTOMER_ID,
       description: 'Google Ads API (검색/디스플레이/유튜브)',
       lastSyncAt: new Date().toISOString(),
     },
     {
       channel: 'meta',
       label: 'Meta Ads',
-      connected: !!process.env.META_ADS_ACCESS_TOKEN && !!process.env.META_ADS_AD_ACCOUNT_ID,
+      connected: ipOk && !!process.env.META_ADS_ACCESS_TOKEN && !!process.env.META_ADS_AD_ACCOUNT_ID,
       description: 'Meta Marketing API (Facebook / Instagram)',
       lastSyncAt: new Date().toISOString(),
     },
     {
       channel: 'naver',
       label: '네이버 검색광고',
-      connected: !!process.env.NAVER_SEARCHAD_API_KEY && !!process.env.NAVER_SEARCHAD_CUSTOMER_ID,
+      connected: ipOk && !!process.env.NAVER_SEARCHAD_API_KEY && !!process.env.NAVER_SEARCHAD_CUSTOMER_ID,
       description: 'Naver Search Ad API (파워링크/브랜드검색)',
       lastSyncAt: new Date().toISOString(),
     },
     {
       channel: 'kakao',
       label: '카카오모먼트',
-      connected: !!process.env.KAKAO_MOMENT_ACCESS_TOKEN && !!process.env.KAKAO_MOMENT_AD_ACCOUNT_ID,
+      connected: ipOk && !!process.env.KAKAO_MOMENT_ACCESS_TOKEN && !!process.env.KAKAO_MOMENT_AD_ACCOUNT_ID,
       description: 'Kakao Moment API (디스플레이/메시지)',
       lastSyncAt: new Date().toISOString(),
     },
   ]
+}
+
+/**
+ * 실 매체 API 호출 가드 — 최우선 규칙.
+ * 실제 fetch 분기 앞에 반드시 이 함수를 호출하여 IP를 검증할 것.
+ * 허가된 IP가 아니면 false → 호출자는 시뮬레이션 데이터로 폴백해야 함.
+ */
+export function canFetchRealMediaData(req?: Request): boolean {
+  return canCallMediaApi(req)
 }
 
 // ───────── 시뮬레이션 데이터 (실 API 미연결 시) ─────────
