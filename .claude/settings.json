@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(curl -s -X POST \"https://works.wepick.kr/jsonrpc\" -H \"Content-Type: application/json\" -d \"{\"\"jsonrpc\"\":\"\"2.0\"\",\"\"method\"\":\"\"call\"\",\"\"params\"\":{\"\"service\"\":\"\"object\"\",\"\"method\"\":\"\"execute_kw\"\",\"\"args\"\":[\"\"works\"\",68,\"\"0673d45026b221ff19a897cb862a1369ec409cac\"\",\"\"crm.lead\"\",\"\"search_read\"\",[[  [\"\"id\"\",\"\"in\"\",[17580,17590,17660,17665,17669]]  ]],{\"\"fields\"\":[\"\"id\"\",\"\"name\"\",\"\"type\"\",\"\"team_id\"\",\"\"create_date\"\"],\"\"order\"\":\"\"id asc\"\"}]},\"\"id\"\":7}\")"
-    ]
-  }
-}
