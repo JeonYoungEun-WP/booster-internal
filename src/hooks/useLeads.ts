@@ -6,6 +6,7 @@ interface UseLeadsOptions {
   sortField?: string
   sortDir?: 'asc' | 'desc'
   search?: string
+  platform?: string
 }
 
 export function useLeads({
@@ -14,6 +15,7 @@ export function useLeads({
   sortField = 'create_date',
   sortDir = 'desc',
   search = '',
+  platform = '',
 }: UseLeadsOptions) {
   const [data, setData] = useState<Record<string, unknown>[]>([])
   const [total, setTotal] = useState(0)
@@ -32,6 +34,7 @@ export function useLeads({
       sortDir,
     })
     if (search) params.set('search', search)
+    if (platform) params.set('platform', platform)
 
     fetch(`/api/leads?${params}`)
       .then((res) => res.json())
@@ -49,9 +52,27 @@ export function useLeads({
       })
 
     return () => { cancelled = true }
-  }, [limit, offset, sortField, sortDir, search])
+  }, [limit, offset, sortField, sortDir, search, platform])
 
   return { data, total, loading, error, source: 'odoo' as const }
+}
+
+export function usePlatformOptions() {
+  const [options, setOptions] = useState<[string, string][]>([])
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/leads?action=platforms')
+      .then((res) => res.json())
+      .then((json) => {
+        if (cancelled) return
+        setOptions(json.options || [])
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  return options
 }
 
 export interface MonthData {

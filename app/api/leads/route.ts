@@ -92,6 +92,16 @@ export async function GET(request: NextRequest) {
       ? [['id', 'not in', bulkIds]]
       : []
 
+    if (action === 'platforms') {
+      const meta = await rpc('object', 'execute_kw', [
+        ODOO_DB, uid, ODOO_API_KEY, 'crm.lead', 'fields_get',
+        [['x_studio_selection_field_oo_1i57nj2og']],
+        { attributes: ['selection'] },
+      ]) as Record<string, { selection?: [string, string][] }>
+      const selection = meta?.['x_studio_selection_field_oo_1i57nj2og']?.selection || []
+      return NextResponse.json({ options: selection })
+    }
+
     if (action === 'monthly') {
       const startDate = searchParams.get('startDate') || ''
       const endDate = searchParams.get('endDate') || ''
@@ -114,8 +124,12 @@ export async function GET(request: NextRequest) {
     const sortField = searchParams.get('sortField') || 'create_date'
     const sortDir = searchParams.get('sortDir') || 'desc'
     const search = (searchParams.get('search') || '').trim()
+    const platform = (searchParams.get('platform') || '').trim()
 
     const domain: unknown[] = [...baseDomain]
+    if (platform) {
+      domain.push(['x_studio_selection_field_oo_1i57nj2og', '=', platform])
+    }
     if (search) {
       const searchFields = [
         'name', 'partner_name', 'email_from',

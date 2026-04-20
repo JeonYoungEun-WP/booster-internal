@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useLeads, useMonthlyLeadCounts, type MonthData } from '@/src/hooks/useLeads';
+import { useLeads, useMonthlyLeadCounts, usePlatformOptions, type MonthData } from '@/src/hooks/useLeads';
 
 const PAGE_SIZE = 20;
 
@@ -53,6 +53,8 @@ export default function LeadsPage() {
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
+  const [platform, setPlatform] = useState('');
+  const platformOptions = usePlatformOptions();
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -78,6 +80,7 @@ export default function LeadsPage() {
     sortField,
     sortDir,
     search,
+    platform,
   });
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -108,23 +111,38 @@ export default function LeadsPage() {
           </div>
         </div>
 
-        <div className="relative">
-          <input
-            type="search"
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            placeholder="리드명, 고객, 이메일, 랜딩, 키워드, 캠페인 검색..."
-            className="w-full rounded-lg border border-border bg-card px-4 py-2 pr-10 text-sm shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-          />
-          {searchInput && (
-            <button
-              onClick={() => setSearchInput('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
-              aria-label="검색어 지우기"
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1">
+            <input
+              type="search"
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              placeholder="리드명, 고객, 이메일, 랜딩, 키워드, 캠페인 검색..."
+              className="w-full rounded-lg border border-border bg-card px-4 py-2 pr-10 text-sm shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+            {searchInput && (
+              <button
+                onClick={() => setSearchInput('')}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
+                aria-label="검색어 지우기"
+              >
+                &#10005;
+              </button>
+            )}
+          </div>
+          <label className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm shadow-sm">
+            <span className="whitespace-nowrap text-muted-foreground">플랫폼:</span>
+            <select
+              value={platform}
+              onChange={(e) => { setPlatform(e.target.value); setPage(0); }}
+              className="bg-transparent outline-none min-w-[120px]"
             >
-              &#10005;
-            </button>
-          )}
+              <option value="">전체</option>
+              {platformOptions.map(([value, label]) => (
+                <option key={value} value={value}>{label}</option>
+              ))}
+            </select>
+          </label>
         </div>
 
         {!monthly.loading && monthly.months.length > 0 && (() => {
