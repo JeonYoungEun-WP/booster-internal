@@ -5,6 +5,7 @@ interface UseLeadsOptions {
   offset?: number
   sortField?: string
   sortDir?: 'asc' | 'desc'
+  search?: string
 }
 
 export function useLeads({
@@ -12,6 +13,7 @@ export function useLeads({
   offset = 0,
   sortField = 'create_date',
   sortDir = 'desc',
+  search = '',
 }: UseLeadsOptions) {
   const [data, setData] = useState<Record<string, unknown>[]>([])
   const [total, setTotal] = useState(0)
@@ -29,6 +31,7 @@ export function useLeads({
       sortField,
       sortDir,
     })
+    if (search) params.set('search', search)
 
     fetch(`/api/leads?${params}`)
       .then((res) => res.json())
@@ -46,7 +49,7 @@ export function useLeads({
       })
 
     return () => { cancelled = true }
-  }, [limit, offset, sortField, sortDir])
+  }, [limit, offset, sortField, sortDir, search])
 
   return { data, total, loading, error, source: 'odoo' as const }
 }

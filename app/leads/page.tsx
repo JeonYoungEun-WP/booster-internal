@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLeads, useMonthlyLeadCounts, type MonthData } from '@/src/hooks/useLeads';
 
 const PAGE_SIZE = 20;
@@ -51,6 +51,16 @@ export default function LeadsPage() {
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const monthly = useMonthlyLeadCounts();
   const [selectedMonth, setSelectedMonth] = useState<number | null>(null);
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setSearch(searchInput.trim());
+      setPage(0);
+    }, 300);
+    return () => clearTimeout(t);
+  }, [searchInput]);
 
   const handleSort = (field: string) => {
     if (field === sortField) {
@@ -67,6 +77,7 @@ export default function LeadsPage() {
     offset: page * PAGE_SIZE,
     sortField,
     sortDir,
+    search,
   });
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -95,6 +106,25 @@ export default function LeadsPage() {
               동기화
             </button>
           </div>
+        </div>
+
+        <div className="relative">
+          <input
+            type="search"
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            placeholder="리드명, 고객, 이메일, 랜딩, 키워드, 캠페인 검색..."
+            className="w-full rounded-lg border border-border bg-card px-4 py-2 pr-10 text-sm shadow-sm outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+          />
+          {searchInput && (
+            <button
+              onClick={() => setSearchInput('')}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-2 py-0.5 text-xs text-muted-foreground hover:bg-muted"
+              aria-label="검색어 지우기"
+            >
+              &#10005;
+            </button>
+          )}
         </div>
 
         {!monthly.loading && monthly.months.length > 0 && (() => {

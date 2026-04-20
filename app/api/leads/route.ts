@@ -113,16 +113,30 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get('offset') || '0')
     const sortField = searchParams.get('sortField') || 'create_date'
     const sortDir = searchParams.get('sortDir') || 'desc'
+    const search = (searchParams.get('search') || '').trim()
+
+    const domain: unknown[] = [...baseDomain]
+    if (search) {
+      const searchFields = [
+        'name', 'partner_name', 'email_from',
+        'x_studio_char_field_1vr_1i3fco0k9', // landing
+        'x_studio_char_field_3ao_1i3fcoas5', // keyword
+        'x_studio_', // campaign
+      ]
+      // OR across fields: prefix (N-1) '|' operators
+      for (let i = 0; i < searchFields.length - 1; i++) domain.push('|')
+      for (const f of searchFields) domain.push([f, 'ilike', search])
+    }
 
     const [records, total] = await Promise.all([
       rpc('object', 'execute_kw', [
         ODOO_DB, uid, ODOO_API_KEY, 'crm.lead', 'search_read',
-        [baseDomain],
+        [domain],
         { fields: FIELDS, limit, offset, order: `${sortField} ${sortDir}` },
       ]),
       rpc('object', 'execute_kw', [
         ODOO_DB, uid, ODOO_API_KEY, 'crm.lead', 'search_count',
-        [baseDomain],
+        [domain],
       ]),
     ])
 
