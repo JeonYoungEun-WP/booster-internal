@@ -21,9 +21,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ reports: [] })
     }
     console.error('GET /api/tasks/weekly error:', e)
-    const detail = e instanceof Error ? e.message : String(e)
     return NextResponse.json(
-      { error: 'Failed to fetch weekly reports', detail },
+      { error: 'Failed to fetch weekly reports' },
       { status: 500 },
     )
   }
