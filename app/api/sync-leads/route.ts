@@ -1,6 +1,28 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
+// Supabase `odoo_leads` 테이블 (Prisma 스키마 외부에서 수동 관리):
+//   id              bigint        primary key  -- Odoo crm.lead.id
+//   name            text
+//   partner_name    text
+//   email_from      text
+//   expected_revenue numeric
+//   stage_id        bigint
+//   stage_name      text
+//   user_id         bigint
+//   user_name       text
+//   create_date     timestamptz
+//   industry        text
+//   product         text
+//   platform        text
+//   source          text
+//   medium          text
+//   campaign        text
+//   landing         text
+//   keyword         text
+//   synced_at       timestamptz
+// 컬럼 변경 시 mapLeadToRow / 위 정의 / Supabase 테이블을 함께 갱신할 것.
+
 const ODOO_URL = process.env.ODOO_URL || 'https://works.wepick.kr';
 const ODOO_DB = process.env.ODOO_DB || 'works';
 const ODOO_USERNAME = process.env.ODOO_USERNAME;
@@ -78,10 +100,10 @@ function mapLeadToRow(lead: Record<string, unknown>) {
 
 export async function GET(request: NextRequest) {
   try {
-    // 내부 프로젝트 — CRON_SECRET으로 인증
+    // 내부 프로젝트 — CRON_SECRET으로 인증 (env 미설정 시에도 거부)
     const { searchParams } = new URL(request.url);
     const secret = searchParams.get('secret');
-    if (secret !== process.env.CRON_SECRET && process.env.CRON_SECRET) {
+    if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
     const mode = searchParams.get('mode');

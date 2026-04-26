@@ -85,6 +85,7 @@ export default function FunnelPage() {
   const [leads, setLeads] = useState<LeadRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ga4Error, setGa4Error] = useState<string | null>(null);
 
   const { startDate, endDate } = getRange(range);
   const monthRange = getMonthRange();
@@ -93,15 +94,24 @@ export default function FunnelPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
+    setGa4Error(null);
 
     Promise.all([
-      fetch(`/api/ga4report?startDate=${startDate}&endDate=${endDate}`).then(r => r.json()),
-      fetch(`/api/leads?action=monthly&startDate=${encodeURIComponent(monthRange.startDate)}&endDate=${encodeURIComponent(monthRange.endDate)}`).then(r => r.json()),
+      fetch(`/api/ga4report?startDate=${startDate}&endDate=${endDate}`).then(r => r.json()).catch(err => ({ error: String(err) })),
+      fetch(`/api/leads?action=monthly&startDate=${encodeURIComponent(monthRange.startDate)}&endDate=${encodeURIComponent(monthRange.endDate)}`).then(r => r.json()).catch(err => ({ error: String(err), records: [] })),
     ])
       .then(([gaRes, leadRes]) => {
         if (cancelled) return;
-        if (gaRes.error) throw new Error(gaRes.error);
-        setGa4(gaRes);
+        // GA4 실패해도 페이지는 렌더; 배너로만 알림
+        if (gaRes.error) {
+          setGa4Error(gaRes.error);
+          setGa4(null);
+        } else {
+          setGa4(gaRes);
+        }
+        if (leadRes.error) {
+          setError(`리드 데이터 조회 실패: ${leadRes.error}`);
+        }
         setLeads(leadRes.records || []);
       })
       .catch(err => {
@@ -232,6 +242,12 @@ export default function FunnelPage() {
         {error && (
           <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-red-500">
             오류: {error}
+          </div>
+        )}
+
+        {ga4Error && !loading && (
+          <div className="rounded-lg border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-4 text-sm text-amber-700 dark:text-amber-300">
+            GA4 데이터를 불러오지 못했습니다 (리드 데이터는 정상). 원인: {ga4Error}
           </div>
         )}
 

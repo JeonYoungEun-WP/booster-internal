@@ -71,7 +71,9 @@ model ProjectActivity {
   @@index([date])
 }
 
-// 리드 관리 (sync-leads용)
+// @deprecated 미사용 모델. 실제 리드 데이터는 Supabase의 raw 테이블 `odoo_leads`(sync-leads로 동기화)
+// 또는 Odoo API(/api/leads) 직접 조회로 처리됨. 제거 시 Supabase의 lead/lead_history 테이블이
+// drop될 수 있으므로 데이터 백업 후 별도 마이그레이션으로 정리할 것.
 model Lead {
   id             String     @id @default(cuid())
   userId         String?

@@ -72,6 +72,7 @@ export default function WeeklyReportPage() {
   const [prevLeadWeeks, setPrevLeadWeeks] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [ga4Error, setGa4Error] = useState<string | null>(null);
   const [aiComment, setAiComment] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
@@ -80,17 +81,23 @@ export default function WeeklyReportPage() {
 
   useEffect(() => {
     let cancelled = false;
+    setGa4Error(null);
 
     Promise.all([
-      fetch(`/api/ga4report/weekly?year=${year}`).then(r => r.json()),
-      fetch(`/api/ga4report/weekly?year=${prevYear}`).then(r => r.json()),
-      fetch(`/api/leads?action=monthly&startDate=${year}-01-01 00:00:00&endDate=${year}-12-31 23:59:59`).then(r => r.json()),
-      fetch(`/api/leads?action=monthly&startDate=${prevYear}-01-01 00:00:00&endDate=${prevYear}-12-31 23:59:59`).then(r => r.json()),
+      fetch(`/api/ga4report/weekly?year=${year}`).then(r => r.json()).catch(err => ({ error: String(err) })),
+      fetch(`/api/ga4report/weekly?year=${prevYear}`).then(r => r.json()).catch(err => ({ error: String(err) })),
+      fetch(`/api/leads?action=monthly&startDate=${year}-01-01 00:00:00&endDate=${year}-12-31 23:59:59`).then(r => r.json()).catch(err => ({ error: String(err), records: [] })),
+      fetch(`/api/leads?action=monthly&startDate=${prevYear}-01-01 00:00:00&endDate=${prevYear}-12-31 23:59:59`).then(r => r.json()).catch(err => ({ error: String(err), records: [] })),
     ])
       .then(([ga, prevGa, leads, prevLeads]) => {
         if (cancelled) return;
-        if (ga.error) throw new Error(ga.error);
-        setGaData(ga);
+        // GA4 실패해도 페이지는 렌더 (리드 데이터로 가능한 부분만 표시)
+        if (ga.error) {
+          setGa4Error(ga.error);
+          setGaData(null);
+        } else {
+          setGaData(ga);
+        }
         if (!prevGa.error) setPrevYearData(prevGa);
 
         // 리드를 주별로 집계 (paid/organic 분리)
@@ -279,6 +286,12 @@ export default function WeeklyReportPage() {
           <h1 className="text-2xl font-bold">위픽부스터 {titleWeek}</h1>
           <p className="text-sm text-muted-foreground mt-1">{titleDate}</p>
         </div>
+
+        {ga4Error && (
+          <div className="rounded-lg border border-amber-500/50 bg-amber-50 dark:bg-amber-950/20 p-4 text-sm text-amber-700 dark:text-amber-300">
+            GA4 데이터를 불러오지 못했습니다. 리드 통계만 표시됩니다. 원인: {ga4Error}
+          </div>
+        )}
 
         {/* AI 분석 */}
         <div className="rounded-xl border border-border bg-card p-5 shadow-sm">

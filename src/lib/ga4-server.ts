@@ -71,11 +71,14 @@ export async function getAccessToken(): Promise<string> {
 
   const auth = new GoogleAuth({
     scopes: ['https://www.googleapis.com/auth/analytics.readonly'],
-    projectId: 'project-150ad5c5-0e90-4383-9bc',
+    ...(process.env.GCP_PROJECT_ID ? { projectId: process.env.GCP_PROJECT_ID } : {}),
   })
   const client = await auth.getClient()
   const { token } = await client.getAccessToken()
-  if (!token) throw new Error('Failed to get access token')
+  if (!token) throw new Error(
+    'GA4 인증 실패: GCP_SA_KEY_JSON이 없고, Vercel WIF도 비활성화이며, 로컬 ADC도 토큰을 발급하지 못했습니다. ' +
+    '로컬에서는 `gcloud auth application-default login` 실행 또는 GCP_SA_KEY_JSON 설정 필요.'
+  )
   return token
 }
 
