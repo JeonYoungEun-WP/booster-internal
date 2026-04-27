@@ -52,68 +52,78 @@ export async function POST(request: NextRequest) {
     const results: { email: string; name: string; generated: boolean; summary?: string }[] = []
 
     for (const member of members) {
-      // 전주 데일리 업무 조회
-      const tasks = await prisma.dailyTask.findMany({
-        where: {
-          authorEmail: member.email,
-          date: {
-            gte: new Date(prevMondayStr),
-            lte: new Date(prevFridayStr),
+      try {
+        // 전주 데일리 업무 조회
+        const tasks = await prisma.dailyTask.findMany({
+          where: {
+            authorEmail: member.email,
+            date: {
+              gte: new Date(prevMondayStr),
+              lte: new Date(prevFridayStr),
+            },
           },
-        },
-        orderBy: { date: 'asc' },
-      })
+          orderBy: { date: 'asc' },
+        })
 
-      if (tasks.length === 0) {
-        results.push({ email: member.email, name: member.name, generated: false })
-        continue
-      }
+        if (tasks.length === 0) {
+          results.push({ email: member.email, name: member.name, generated: false })
+          continue
+        }
 
-      // Claude AI 요약 생성
-      const dailyEntries = tasks.map((t) => ({
-        date: t.date.toISOString().slice(0, 10),
-        content: t.content.replace(/<[^>]+>/g, '').trim(),
-      }))
+        // Claude AI 요약 생성
+        const dailyEntries = tasks.map((t) => ({
+          date: t.date.toISOString().slice(0, 10),
+          content: t.content.replace(/<[^>]+>/g, '').trim(),
+        }))
 
-      // rate limit 방지: 팀원 사이 5초 대기
-      if (results.length > 0) {
-        await new Promise((r) => setTimeout(r, 5000))
-      }
+        // rate limit 방지: 팀원 사이 5초 대기
+        if (results.length > 0) {
+          await new Promise((r) => setTimeout(r, 5000))
+        }
 
-      const summary = await generateWeeklySummary(
-        member.name,
-        prevMondayStr,
-        prevFridayStr,
-        dailyEntries,
-      )
+        const summary = await generateWeeklySummary(
+          member.name,
+          prevMondayStr,
+          prevFridayStr,
+          dailyEntries,
+        )
 
-      // WeeklyReport에 upsert
-      await prisma.weeklyReport.upsert({
-        where: {
-          weekStart_authorEmail: {
+        // WeeklyReport에 upsert
+        await prisma.weeklyReport.upsert({
+          where: {
+            weekStart_authorEmail: {
+              weekStart: new Date(thisMondayStr),
+              authorEmail: member.email,
+            },
+          },
+          update: {
+            weeklySummary: summary,
+            summaryGeneratedAt: new Date(),
+          },
+          create: {
             weekStart: new Date(thisMondayStr),
             authorEmail: member.email,
+            authorName: member.name,
+            weeklySummary: summary,
+            summaryGeneratedAt: new Date(),
           },
-        },
-        update: {
-          weeklySummary: summary,
-          summaryGeneratedAt: new Date(),
-        },
-        create: {
-          weekStart: new Date(thisMondayStr),
-          authorEmail: member.email,
-          authorName: member.name,
-          weeklySummary: summary,
-          summaryGeneratedAt: new Date(),
-        },
-      })
+        })
 
-      results.push({
-        email: member.email,
-        name: member.name,
-        generated: true,
-        summary: summary.slice(0, 200) + (summary.length > 200 ? '...' : ''),
-      })
+        results.push({
+          email: member.email,
+          name: member.name,
+          generated: true,
+          summary: summary.slice(0, 200) + (summary.length > 200 ? '...' : ''),
+        })
+      } catch (memberError) {
+        console.error(`Weekly summary generation failed for ${member.email}:`, memberError)
+        results.push({
+          email: member.email,
+          name: member.name,
+          generated: false,
+          summary: `오류: ${(memberError as Error).message}`,
+        })
+      }
     }
 
     return NextResponse.json({
