@@ -23,13 +23,7 @@ function maskUrl(url: string | undefined) {
   }
 }
 
-export async function GET(request: NextRequest) {
-  const { searchParams } = new URL(request.url)
-  const secret = searchParams.get('secret')
-  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export async function GET(_request: NextRequest) {
   const databaseUrl = maskUrl(process.env.DATABASE_URL)
   const directUrl = maskUrl(process.env.DIRECT_URL)
 
