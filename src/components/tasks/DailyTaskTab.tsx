@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useDailyTasks } from '@/src/hooks/useDailyTasks'
 import { DailyTaskForm } from './DailyTaskForm'
+import { filterVisibleMembers } from '@/src/lib/team'
 
 const TEAM_MEMBERS = [
   { name: '전체', email: '' },
@@ -106,7 +107,7 @@ export function DailyTaskTab() {
           onChange={(e) => setFilterEmail(e.target.value)}
           className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
         >
-          {TEAM_MEMBERS.map((m) => (
+          {filterVisibleMembers(TEAM_MEMBERS, endDate).map((m) => (
             <option key={m.email} value={m.email}>{m.name}</option>
           ))}
         </select>

@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { filterVisibleMembers } from '@/src/lib/team'
 
 const TEAM_OPTIONS = [
   { name: '전영은', email: 'youngeun@wepick.kr' },
@@ -49,7 +50,7 @@ export function DailyTaskForm({ onSubmit, onCancel }: DailyTaskFormProps) {
           onChange={(e) => setAuthorEmail(e.target.value)}
           className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
         >
-          {TEAM_OPTIONS.map((m) => (
+          {filterVisibleMembers(TEAM_OPTIONS, date).map((m) => (
             <option key={m.email} value={m.email}>{m.name}</option>
           ))}
         </select>

@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useProjects } from '@/src/hooks/useProjects'
 import { ProjectForm } from './ProjectForm'
+import { filterVisibleMembers } from '@/src/lib/team'
 
 interface DailyTask {
   id: string
@@ -25,6 +26,15 @@ const STATUS_LABELS: Record<string, string> = {
 }
 
 const MEMBERS = ['전영은', '권상현', '이유림', '이정하', '이정주', '조희연', '서청원']
+const MEMBERS_WITH_EMAIL = [
+  { name: '전영은', email: 'youngeun@wepick.kr' },
+  { name: '권상현', email: 'sanghyeon@wepick.kr' },
+  { name: '이유림', email: 'youlim@wepick.kr' },
+  { name: '이정하', email: 'jungha@wepick.kr' },
+  { name: '이정주', email: 'jeongju@wepick.kr' },
+  { name: '조희연', email: 'heeyeon@wepick.kr' },
+  { name: '서청원', email: 'cheongwon@wepick.kr' },
+]
 const MEMBER_COLORS: Record<string, string> = {
   '전영은': '#3b82f6',
   '권상현': '#22c55e',
@@ -303,6 +313,9 @@ function AXSprintTimeline({
   isCurrentMonth: boolean
   today: number
 }) {
+  const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+  const visibleMemberNames = filterVisibleMembers(MEMBERS_WITH_EMAIL, todayStr).map(m => m.name)
+
   // member -> day -> items
   const memberDayMap = useMemo(() => {
     const map: Record<string, Record<number, string[]>> = {}
@@ -320,7 +333,7 @@ function AXSprintTimeline({
     return map
   }, [tasks, viewYear, viewMonth])
 
-  const hasData = MEMBERS.some((m) => Object.keys(memberDayMap[m] || {}).length > 0)
+  const hasData = visibleMemberNames.some((m) => Object.keys(memberDayMap[m] || {}).length > 0)
 
   if (loading) return null
 
@@ -359,7 +372,7 @@ function AXSprintTimeline({
             </div>
 
             {/* 멤버별 행 */}
-            {MEMBERS.map((member) => {
+            {visibleMemberNames.map((member) => {
               const dayMap = memberDayMap[member] || {}
               const hasMemberData = Object.keys(dayMap).length > 0
               if (!hasMemberData) return null

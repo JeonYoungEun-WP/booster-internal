@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from 'react'
 import { useWeeklyReports } from '@/src/hooks/useWeeklyReports'
+import { filterVisibleMembers } from '@/src/lib/team'
 
 const TEAM_MEMBERS = [
   { name: '전체', email: '' },
@@ -118,6 +119,8 @@ export function WeeklyReportTab() {
     filterEmail || undefined,
   )
 
+  const todayStr = new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
   // 주차별 그룹핑
   const weekGroups = useMemo(() => {
     const groups: Record<string, typeof reports> = {}
@@ -147,7 +150,7 @@ export function WeeklyReportTab() {
   const currentWeek = useMemo(() => {
     if (!currentWeekRaw) return null
     const [weekKey, existingReports] = currentWeekRaw
-    const allMembers = TEAM_MEMBERS.filter(m => m.email)
+    const allMembers = filterVisibleMembers(TEAM_MEMBERS.filter(m => m.email), weekKey)
       .filter(m => !filterEmail || m.email === filterEmail)
     const merged = allMembers.map(m => {
       const existing = existingReports.find(r => r.authorEmail === m.email)
@@ -200,7 +203,7 @@ export function WeeklyReportTab() {
           onChange={(e) => setFilterEmail(e.target.value)}
           className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
         >
-          {TEAM_MEMBERS.map((m) => (
+          {filterVisibleMembers(TEAM_MEMBERS, todayStr).map((m) => (
             <option key={m.email} value={m.email}>{m.name}</option>
           ))}
         </select>
@@ -228,7 +231,7 @@ export function WeeklyReportTab() {
               onChange={(e) => setPlanEmail(e.target.value)}
               className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
             >
-              {TEAM_MEMBERS.filter((m) => m.email).map((m) => (
+              {filterVisibleMembers(TEAM_MEMBERS.filter((m) => m.email), targetWeek === 'next' ? getNextMonday() : getThisMonday()).map((m) => (
                 <option key={m.email} value={m.email}>{m.name}</option>
               ))}
             </select>
